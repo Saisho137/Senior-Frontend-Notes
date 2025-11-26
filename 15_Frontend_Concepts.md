@@ -4,7 +4,7 @@
 
 15 Frontend Concepts Every Senior Dev Has Mastered
 
-## 1. The Critical Rendering Path
+## 1. The Critical Rendering Path (CRP)
 
 Its the steps the browser needs to do in order to go from HTML, CSS and JavaScript to pixels on the screen.
 
@@ -15,7 +15,7 @@ PENDING: short description of each step the critical rendering path does, based 
 
 > Senior Developer Tip 1: Dont jump to framework talk immediately (like React). Focus on the underlying principles first (eg: browser mechanics), and use frameworks as an implementation example.
 
-## 2. Core Web Vitals
+## 2. Core Web Vitals (CWV)
 
 Empirical metrics that measure how fast a page loads (CRP) and how fast it responds to input.
 
@@ -118,5 +118,63 @@ Most used pattern by State management libraries today
 
 > Pure Function: Inmutable, Deterministic, No side-effects
 
-## 10. Windowing
-...
+## 10. Windowing (List Visualization)
+
+Aso called “List Virtualization” and its related to INP metric
+
+Mount and unmount elements as they are scrolled outside the view ports to avoid having too many DOM elements. Used when building any kind of feed systems
+
+PENDING: detailed explanation
+
+![alt text](assets/15_Frontend_Concepts/Too-many-elements.png)
+![alt text](assets/15_Frontend_Concepts/On-screen-only.png)
+
+Intersection Observer: native DOM API to detect when an element is inside the port view (traditionally done with scroll position)
+
+PENDING: give an example of Intersection Observer (transcribe image below) and why its considered that it gives stability.
+
+![alt text](assets/15_Frontend_Concepts/intersection-observer.png)
+
+## 11. Server Side Rendering (SSR)
+
+Traditional Client-Side Rendering:
+![alt text](assets/15_Frontend_Concepts/Client-Side-Rendering.png)
+Main problem here is White Screen of Death:
+![alt text](assets/15_Frontend_Concepts/WSoD.png)
+
+Server side rendering:
+![alt text](assets/15_Frontend_Concepts/ssr.png)
+
+In this case, the Server can pre-render the HTML and then send it to the client, but as its just pre-rendered HTML, for a brief moment its not reactive (Dead clicks)
+
+## 12. Rehydratation
+
+Its getting the Rendered HTML and also the client Side Fiber Tree / VDOM and put it together to achieve interactivity
+![alt text](assets/15_Frontend_Concepts/Server-Rendered-HTML.png)
+![alt text](assets/15_Frontend_Concepts/Rehydration.png)
+
+It can generate hydratation errors:
+![alt text](assets/15_Frontend_Concepts/hydratation-Error.png)
+
+## 13. Partial Pre-Rendering
+
+Different rendering strategies on the same page to minimize client side rendering efforts while preserving interactivity
+
+We try to render as much as possible with Static Rendering and only the necessary components are Dynamic (Server Side/Client Side)
+
+![alt text](assets/15_Frontend_Concepts/Recommended.png)
+
+## 14. Server-Side Components
+
+Render all the non-interactive components on the server and ship only markup (Zero JS and no hydration)
+
+Client side component (NextJS):
+![alt text](assets/15_Frontend_Concepts/client-side.png)
+
+## 15. Microfrontends
+
+Allow us to scale applications by working on different features with different teams at the same time; but it could be a bit slower due to run on runtime
+![alt text](assets/15_Frontend_Concepts/microfronts.png)
+
+It could be combined with BFF strategies
+![alt text](assets/15_Frontend_Concepts/BFF-microfronts.png)

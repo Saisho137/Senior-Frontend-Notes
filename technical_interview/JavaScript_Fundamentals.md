@@ -34,26 +34,12 @@
 
 ## Asynchronous Programming
 
-### What is Asynchronous Programming?
-
-**Asynchronous programming** is a programming paradigm that allows operations to run independently of the main program flow. Instead of waiting (blocking) for long-running operations to complete, the program can continue executing other code, and be notified when the operation finishes.
+**Asynchronous programming** allows operations to run independently without blocking the main thread. When long-running operations (network requests, file I/O, database queries) complete, they notify the program via callbacks, promises, or events.
 
 **Key Concepts**:
 
-- **Synchronous (Blocking)**: Operations execute sequentially, one after another. Each operation must complete before the next one starts.
-- **Asynchronous (Non-blocking)**: Operations can start and the program continues executing without waiting for completion. When the operation finishes, a callback, promise, or event notifies the program.
-
-**Why Asynchronous Programming?**
-
-In JavaScript, operations like:
-
-- Network requests (fetch API calls)
-- File system operations (Node.js)
-- Database queries
-- Timers (setTimeout, setInterval)
-- User interactions (click events)
-
-...can take significant time. Without asynchronicity, the entire application would freeze while waiting.
+- **Synchronous**: Operations execute sequentially; each must complete before the next starts
+- **Asynchronous**: Operations start and code continues executing; completion notifies via callback/promise
 
 ### JavaScript: Single-Threaded Nature
 
@@ -170,31 +156,14 @@ self.addEventListener('message', (event) => {
 
 ### Non-Blocking I/O
 
-**What is I/O (Input/Output)?**
-
-Operations that interact with external systems:
-
-- Reading/writing files
-- Network requests
-- Database queries
-- Reading sensors, etc.
-
-**Blocking I/O** (Traditional approach):
+JavaScript delegates I/O operations (file system, network, database) to system APIs that handle them in the background. When complete, callbacks are queued in the Event Loop.
 
 ```javascript
-// Pseudocode - This blocks
-const data = readFileSync('large-file.txt'); // Waits here until complete
-console.log(data);
-console.log('Continue...'); // Can't execute until readFileSync finishes
-```
+// Blocking (sync)
+const data = readFileSync('file.txt'); // Waits until complete
 
-**Non-Blocking I/O** (JavaScript approach):
-
-```javascript
-// This doesn't block
-readFile('large-file.txt', (data) => {
-  console.log(data);
-});
+// Non-blocking (async)
+readFile('file.txt', (data) => console.log(data));
 console.log('Continue...'); // Executes immediately
 // Output: "Continue..." then file data
 ```
@@ -214,7 +183,7 @@ console.log('Continue...'); // Executes immediately
 - Handle many operations concurrently
 - Scalability (servers can handle thousands of requests)
 
-### Key Mechanisms
+### Async Mechanisms
 
 - **Callbacks**: Functions passed as arguments, executed after async operation completes
 - **Promises**: Objects representing eventual completion/failure of async operation
@@ -309,48 +278,16 @@ function recursiveFunction() {
 
 **What they are**: Separate APIs provided by the runtime environment (browser or Node.js) that handle asynchronous operations **outside** the JavaScript thread.
 
-**Browser Web APIs**:
+**Browser**: `setTimeout`, `fetch`, DOM events, `requestAnimationFrame`
+**Node.js**: File system, network, timers, `process.nextTick`
 
-- `setTimeout` / `setInterval`
-- `fetch` / `XMLHttpRequest`
-- DOM events (`addEventListener`)
-- `requestAnimationFrame`
-- `IntersectionObserver`, `MutationObserver`
+#### 3. Macrotask Queue
 
-**Node.js APIs**:
-
-- File system operations (`fs.readFile`)
-- Network operations (`http.request`)
-- Timers (`setTimeout`, `setImmediate`)
-- `process.nextTick`
-
-**Key Point**: These APIs run in **separate threads** managed by the browser or Node.js C++ layer, not in JavaScript's single thread.
-
-#### 3. Task Queues (Macrotask Queue)
-
-**What it is**: A FIFO (First In, First Out) queue that stores callbacks from completed asynchronous operations.
-
-**Contents**:
-
-- `setTimeout` / `setInterval` callbacks
-- I/O operation callbacks
-- `setImmediate` (Node.js)
-- UI rendering tasks (browser)
-
-**How it works**: When a Web API completes, it pushes the callback to this queue. The Event Loop processes these one at a time.
+FIFO queue for async callbacks: `setTimeout`, I/O, `setImmediate`, UI rendering. Processes **one per cycle**.
 
 #### 4. Microtask Queue
 
-**What it is**: A special queue with **higher priority** than the Macrotask Queue.
-
-**Contents**:
-
-- `Promise.then/catch/finally` callbacks
-- `queueMicrotask()` callbacks
-- `MutationObserver` callbacks
-- `async/await` continuations
-
-**Critical Difference**: ALL microtasks are processed before moving to the next macrotask.
+**Higher priority** than macrotasks. Contains: `Promise` callbacks, `queueMicrotask()`, `async/await`. Processes **ALL** before next macrotask.
 
 #### 5. Render Queue (Browser Only)
 
@@ -429,14 +366,9 @@ Synchronous code → **ALL Microtasks** → Render → **ONE Macrotask** → **A
 **Warning - Microtask Infinite Loop**:
 
 ```javascript
-function recursiveMicrotask() {
-  queueMicrotask(() => {
-    console.log('Microtask');
-    recursiveMicrotask(); // Creates infinite loop - blocks everything!
-  });
+function bad() {
+  queueMicrotask(() => { console.log('Loop'); bad(); });
 }
-
-recursiveMicrotask(); // Never proceeds to macrotasks or rendering
 ```
 
 #### Macrotasks (Lower Priority)
@@ -493,112 +425,18 @@ console.log('Script end');
 // setTimeout
 ```
 
-#### Node.js Event Loop
+#### Node.js
 
-**Characteristics**:
-
-- No rendering pipeline
-- More complex with multiple phases
-- Built on **libuv** (C library)
-- Optimized for I/O operations
-
-**Event Loop Phases** (Node.js specific):
-
-```text
-   ┌───────────────────────────┐
-┌─>│           timers          │ - setTimeout, setInterval
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │     pending callbacks     │ - I/O callbacks
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │       idle, prepare       │ - Internal use only
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │           poll            │ - Retrieve new I/O events
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │           check           │ - setImmediate callbacks
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-└──│      close callbacks      │ - socket.on('close', ...)
-   └───────────────────────────┘
-```
-
-**Unique APIs**:
-
-1. **`process.nextTick()`**: Executes immediately after current operation, before any I/O events or timers. Higher priority than regular microtasks.
+6 phases (timers → poll → check). Has `process.nextTick()` (highest priority) and `setImmediate()`.
 
 ```javascript
-console.log('start');
-
-setTimeout(() => console.log('setTimeout'), 0);
-setImmediate(() => console.log('setImmediate'));
-
-Promise.resolve().then(() => console.log('Promise'));
-
-process.nextTick(() => console.log('nextTick'));
-
-console.log('end');
-
-// Output:
-// start
-// end
-// nextTick (highest priority)
-// Promise (microtask)
-// setTimeout (timer phase)
-// setImmediate (check phase)
+process.nextTick(() => console.log('nextTick')); // Executes first
+Promise.resolve().then(() => console.log('promise')); // Then microtasks
+setTimeout(() => console.log('timeout'), 0); // Then timers phase
+setImmediate(() => console.log('immediate')); // Then check phase
 ```
 
-**`setImmediate()`**: Executes in the "check" phase, after I/O events. More predictable than `setTimeout(fn, 0)`.
-
-**Key Differences Summary**:
-
-| Feature | Browser | Node.js |
-|---------|---------|---------|
-| **Rendering** | Yes (integrated) | No |
-| **Phases** | Simple (Macro/Micro) | Complex (6 phases) |
-| **`setImmediate`** | ❌ Not available | ✅ Available |
-| **`process.nextTick`** | ❌ Not available | ✅ Available |
-| **`requestAnimationFrame`** | ✅ Available | ❌ Not available |
-| **Primary use case** | UI interactions | I/O operations |
-| **Underlying lib** | Browser engine | libuv (C) |
-
-**Classic Interview Question**:
-
-```javascript
-console.log('1');
-
-setTimeout(() => console.log('2'), 0);
-
-Promise.resolve().then(() => console.log('3'));
-
-console.log('4');
-
-// Output: 1, 4, 3, 2
-// Explanation: Sync code first (1, 4), then microtasks (3), then macrotasks (2)
-```
-
-**Complex Example**:
-
-```javascript
-console.log('start');
-
-setTimeout(() => {
-  console.log('setTimeout 1');
-  Promise.resolve().then(() => console.log('promise 1'));
-}, 0);
-
-Promise.resolve()
-  .then(() => {
-    console.log('promise 2');
-    setTimeout(() => console.log('setTimeout 2'), 0);
-  });
-
-console.log('end');
-
-// Output: start, end, promise 2, setTimeout 1, promise 1, setTimeout 2
-```
+**Execution Order**: Sync → ALL Microtasks → ONE Macrotask → Repeat
 
 ---
 
@@ -668,19 +506,9 @@ console.log(promise); // Promise { <rejected>: Error: Failed }
 └──────────┘    └──────────┘
 ```
 
-**Important**: Once a Promise is fulfilled or rejected (**settled**), its state cannot change. It's immutable.
+Promises are **immutable** once settled (first `resolve`/`reject` wins).
 
-```javascript
-const promise = new Promise((resolve, reject) => {
-  resolve('Success');
-  reject('Failure'); // Ignored - Promise already fulfilled
-  resolve('Another success'); // Also ignored
-});
-```
-
-### Promise Creation
-
-**Using the Promise Constructor**:
+### Creation
 
 ```javascript
 const promise = new Promise((resolve, reject) => {
@@ -761,44 +589,15 @@ const [user, posts, comments] = await Promise.all([
   fetchComments(id)
 ]);
 
-// Rejects immediately if ANY promise rejects
-// Returns array of results in same order as input
-```
+// allSettled: Returns all outcomes
+const results = await Promise.allSettled([fetch('/api/1'), fetch('/api/2')]);
+// [{status: 'fulfilled', value: ...}, {status: 'rejected', reason: ...}]
 
-**`Promise.allSettled(iterable)`**: Waits for ALL promises to settle (ES2020)
+// race: First to finish
+await Promise.race([fetch('/api'), timeout(5000)]);
 
-```javascript
-const results = await Promise.allSettled([
-  fetch('/api/1'),
-  fetch('/api/2'),
-  fetch('/api/3')
-]);
-
-// Always fulfills with array of outcome objects:
-// { status: 'fulfilled', value: ... } or
-// { status: 'rejected', reason: ... }
-```
-
-**`Promise.race(iterable)`**: Resolves/rejects with first promise to settle
-
-```javascript
-const result = await Promise.race([
-  fetch('/api/fast'),
-  fetch('/api/slow')
-]);
-// Returns result from whichever completes first
-```
-
-**`Promise.any(iterable)`**: Resolves with first fulfilled promise (ES2021)
-
-```javascript
-const first = await Promise.any([
-  fetch('/mirror1/data'),
-  fetch('/mirror2/data'),
-  fetch('/mirror3/data')
-]);
-// Returns first successful result, ignores rejections
-// Only rejects if ALL promises reject (AggregateError)
+// any: First success (ignores failures until all fail)
+await Promise.any([fetch('/mirror1'), fetch('/mirror2')]);
 ```
 
 ### Async/Await: Syntactic Sugar
@@ -989,118 +788,23 @@ console.log('Continues immediately'); // Doesn't wait
 
 Callbacks enable non-blocking operations by allowing code to continue executing while waiting for operations to complete.
 
-### The Callback Hell Problem (Pyramid of Doom)
-
-**Example**:
+### Callback Hell (Pyramid of Doom)
 
 ```javascript
-// ❌ Hard to read and maintain
-getUserData(userId, (error, user) => {
-  if (error) {
-    handleError(error);
-    return;
-  }
-  
-  getOrders(user.id, (error, orders) => {
-    if (error) {
-      handleError(error);
-      return;
-    }
-    
-    getOrderDetails(orders[0].id, (error, details) => {
-      if (error) {
-        handleError(error);
-        return;
-      }
-      
-      processPayment(details.total, (error, payment) => {
-        if (error) {
-          handleError(error);
-          return;
-        }
-        
-        sendConfirmation(payment.id, (error, result) => {
-          if (error) {
-            handleError(error);
-            return;
-          }
-          
-          console.log('Done:', result);
-        });
-      });
+// ❌ Nested callbacks
+getData(id, (err, user) => {
+  if (err) return handle(err);
+  getOrders(user.id, (err, orders) => {
+    if (err) return handle(err);
+    process(orders[0], (err, result) => {
+      if (err) return handle(err);
+      console.log(result); // Deep nesting →
     });
   });
 });
 ```
 
-### Problems with Callback-Based Code
-
-#### 1. Deep Nesting (Pyramid of Doom)
-
-- Code grows horizontally instead of vertically
-- Difficult to follow control flow
-- Hard to refactor
-
-#### 2. Error Handling Complexity
-
-```javascript
-// Must check for errors at EVERY level
-function process(callback) {
-  step1((err1, result1) => {
-    if (err1) return callback(err1);
-    
-    step2(result1, (err2, result2) => {
-      if (err2) return callback(err2);
-      
-      step3(result2, (err3, result3) => {
-        if (err3) return callback(err3);
-        
-        callback(null, result3);
-      });
-    });
-  });
-}
-```
-
-#### 3. Inversion of Control
-
-**Definition**: You give your callback to a third-party function, trusting it to:
-
-- Call it (not forget)
-- Call it only once (not multiple times)
-- Call it with correct arguments
-- Handle errors properly
-
-**Problem Example**:
-
-```javascript
-// You're trusting this third-party library
-thirdPartyLibrary.doAsyncOperation(data, (result) => {
-  chargeCustomer(result.amount); // What if called multiple times?!
-});
-
-// Potential issues:
-// - Library calls callback twice → customer charged twice
-// - Library never calls callback → operation hangs forever
-// - Library calls with wrong data → errors
-```
-
-**Trust Issues**: You lose control over when, how, and if your code executes.
-
-#### 4. No Composition
-
-```javascript
-// Can't easily combine multiple callbacks
-const result1 = operation1(callback1);
-const result2 = operation2(callback2);
-// How to wait for both? Complex custom logic needed
-```
-
-#### 5. Difficult Debugging
-
-- Stack traces become hard to follow
-- Breakpoints less effective
-- Hard to trace execution flow
+**Problems**: Deep nesting, repetitive error handling, inversion of control (trust third-party to call callback correctly), no composition, hard debugging.
 
 **Promise Chaining**:
 
@@ -1155,155 +859,23 @@ const [user, posts, comments] = await Promise.all([
 
 ### Destructuring
 
-#### What is Destructuring?
-
-**Destructuring** is a convenient syntax for extracting values from arrays or properties from objects into distinct variables.
-
-**Why it was added to JavaScript**:
-
-- **Reduces boilerplate code**: Extract multiple values in one line
-- **Improves readability**: Clear intent of what's being extracted
-- **Enables elegant patterns**: Swapping variables, function parameters, default values
-- **Prevents errors**: Less chance of typos when accessing nested properties
-
-**Before Destructuring (ES5)**:
+Extract values from arrays/objects into variables:
 
 ```javascript
-// Array access
-var arr = [1, 2, 3];
-var first = arr[0];
-var second = arr[1];
-var third = arr[2];
-
-// Object access
-var user = { name: 'John', age: 30 };
-var name = user.name;
-var age = user.age;
-```
-
-**With Destructuring (ES6)**:
-
-```javascript
-// Array destructuring
-const [first, second, third] = [1, 2, 3];
-
-// Object destructuring
-const { name, age } = user;
-```
-
-#### Array Destructuring
-
-**Basic Pattern**:
-
-```javascript
+// Arrays
 const [first, second, ...rest] = [1, 2, 3, 4, 5];
-// first = 1, second = 2, rest = [3, 4, 5]
-```
+const [a, , c] = [1, 2, 3]; // Skip elements
+[x, y] = [y, x]; // Swap
 
-**Skipping Elements**:
-
-```javascript
-const [first, , third] = [1, 2, 3];
-// first = 1, third = 3 (skipped 2)
-```
-
-**Default Values**:
-
-```javascript
-const [a = 10, b = 20] = [5];
-// a = 5, b = 20 (default used)
-```
-
-**Swapping Variables** (elegant solution):
-
-```javascript
-let x = 1, y = 2;
-[x, y] = [y, x]; // Swap without temp variable
-// x = 2, y = 1
-```
-
-**Nested Arrays**:
-
-```javascript
-const [a, [b, c]] = [1, [2, 3]];
-// a = 1, b = 2, c = 3
-```
-
-#### Object Destructuring
-
-**Basic Pattern**:
-
-```javascript
-const user = { name: 'John', age: 30, city: 'NYC' };
+// Objects
 const { name, age } = user;
-// name = 'John', age = 30
-```
+const { name: userName } = user; // Rename
+const { age = 18, role = 'user' } = user; // Defaults
+const { address: { city } } = user; // Nested
 
-**Renaming Variables**:
-
-```javascript
-const { name: userName, age: userAge } = user;
-// userName = 'John', userAge = 30
-// (name and age don't exist as variables)
-```
-
-**Default Values**:
-
-```javascript
-const { name, age = 18, role = 'user' } = user;
-// If age doesn't exist in user, use 18
-// If role doesn't exist, use 'user'
-```
-
-**Nested Objects**:
-
-```javascript
-const user = {
-  name: 'John',
-  address: {
-    city: 'NYC',
-    country: 'USA'
-  }
-};
-
-const { address: { city, country } } = user;
-// city = 'NYC', country = 'USA'
-// Note: 'address' is NOT created as a variable
-```
-
-**Computed Property Names**:
-
-```javascript
-const key = 'name';
-const { [key]: value } = { name: 'John' };
-// value = 'John'
-```
-
-#### Function Parameter Destructuring
-
-**Why it's powerful**:
-
-- Named parameters (like Python)
-- Clear function signature
-- Easy to add/remove parameters
-- Built-in default values
-
-**Object Parameters**:
-
-```javascript
-// ❌ Old way: positional parameters
-function createUser(name, age, role, active) {
-  // Hard to remember order
-  // Must pass undefined for defaults
-}
-createUser('John', 30, undefined, true);
-
-// ✅ New way: destructured object
-function createUser({ name, age, role = 'user', active = true }) {
-  console.log(name, age, role, active);
-}
-createUser({ name: 'John', age: 30, active: false });
-// Order doesn't matter, clear intent, easy defaults
+// Function params (named params pattern)
+function create({ name, age, role = 'user' }) { }
+create({ name: 'John', age: 30 }); // Order doesn't matter
 ```
 
 **Array Parameters**:
@@ -1382,286 +954,57 @@ The three dots (`...`) have **completely different behaviors** depending on cont
 
 **Definition**: Takes an iterable (array, string, set, etc.) and expands it into individual elements.
 
-**Array Spreading**:
-
 ```javascript
-const arr1 = [1, 2, 3];
-const arr2 = [4, 5, 6];
-
-// Combining arrays
+// Arrays
 const combined = [...arr1, ...arr2];
-// [1, 2, 3, 4, 5, 6]
+const copy = [...arr];
 
-// Adding elements
-const extended = [0, ...arr1, 4];
-// [0, 1, 2, 3, 4]
+// Objects (order matters)
+const config = { ...defaults, ...user }; // user overrides defaults
 
-// Copying arrays (shallow copy)
-const copy = [...arr1];
-// Changes to copy don't affect arr1
+// Functions
+Math.max(...numbers); // spread into arguments
+
+// Strings (handles Unicode)
+[...'👨‍👩‍👧‍👦'].length; // 1 (correct)
 ```
 
-**Why spreading is useful for arrays**:
+#### Rest (Collecting)
 
 ```javascript
-// ❌ Old way
-const combined = arr1.concat(arr2);
-const copy = arr1.slice();
+// Functions (must be last parameter)
+function sum(...nums) { return nums.reduce((a, b) => a + b, 0); }
+function greet(msg, ...names) { return `${msg} ${names.join(', ')}`; }
 
-// ✅ New way (more intuitive)
-const combined = [...arr1, ...arr2];
-const copy = [...arr1];
+// Destructuring
+const [first, ...rest] = [1, 2, 3, 4]; // rest = [2, 3, 4]
+const { name, ...address } = user; // Extract name, rest in address
+
+// Remove properties
+const { password, ...safe } = user; // Remove password
 ```
 
-**Object Spreading** (ES2018):
+#### ⚠️ Shallow Copy
 
 ```javascript
-const obj1 = { a: 1, b: 2 };
-const obj2 = { c: 3, d: 4 };
+const copy = {...obj}; // Nested objects still reference originals!
+copy.nested.x = 5; // Mutates original.nested
 
-// Combining objects
-const combined = { ...obj1, ...obj2 };
-// { a: 1, b: 2, c: 3, d: 4 }
-
-// Overriding properties
-const updated = { ...obj1, b: 999 };
-// { a: 1, b: 999 } (b was overridden)
-
-// Shallow copy
-const copy = { ...obj1 };
-```
-
-**Property Order Matters**:
-
-```javascript
-const defaults = { theme: 'dark', lang: 'en' };
-const user = { lang: 'es' };
-
-// User preferences override defaults
-const config = { ...defaults, ...user };
-// { theme: 'dark', lang: 'es' }
-
-// Defaults fill in missing values
-const config2 = { ...user, ...defaults };
-// { lang: 'en', theme: 'dark' } (defaults override!)
-```
-
-**Function Arguments**:
-
-```javascript
-const numbers = [1, 2, 3];
-
-// Spread array into function arguments
-Math.max(...numbers); // 3
-// Equivalent to: Math.max(1, 2, 3)
-
-console.log(...numbers); // 1 2 3
-// Equivalent to: console.log(1, 2, 3)
-```
-
-**String Spreading**:
-
-```javascript
-const str = 'hello';
-const chars = [...str];
-// ['h', 'e', 'l', 'l', 'o']
-
-// Useful for counting characters (handles Unicode properly)
-const emoji = '👨‍👩‍👧‍👦';
-[...emoji].length; // 1 (correct!)
-emoji.length; // 11 (wrong - counts code points)
-```
-
-#### Rest Parameters (Collecting)
-
-**Definition**: Collects multiple function arguments into an array.
-
-**Basic Usage**:
-
-```javascript
-function sum(...numbers) {
-  return numbers.reduce((acc, n) => acc + n, 0);
-}
-
-sum(1, 2, 3); // 6
-sum(1, 2, 3, 4, 5); // 15
-// All arguments collected into 'numbers' array
-```
-
-**Before Rest Parameters**:
-
-```javascript
-// ❌ Old way: using 'arguments' object
-function oldSum() {
-  // arguments is array-like, not a real array
-  var args = Array.prototype.slice.call(arguments);
-  return args.reduce(function(acc, n) { return acc + n; }, 0);
-}
-
-// ✅ New way: rest parameters
-function newSum(...numbers) {
-  return numbers.reduce((acc, n) => acc + n, 0);
-}
-```
-
-**Combining with Regular Parameters**:
-
-```javascript
-function greet(greeting, ...names) {
-  return `${greeting} ${names.join(', ')}`;
-}
-
-greet('Hello', 'John', 'Jane', 'Bob');
-// "Hello John, Jane, Bob"
-
-// greeting = 'Hello'
-// names = ['John', 'Jane', 'Bob']
-```
-
-**⚠️ Important Rule**: Rest parameter must be LAST
-
-```javascript
-// ✅ Valid
-function fn(a, b, ...rest) { }
-
-// ❌ Invalid
-function fn(...rest, a, b) { } // SyntaxError
-function fn(a, ...rest, b) { } // SyntaxError
-```
-
-#### Rest in Destructuring
-
-**Array Rest**:
-
-```javascript
-const [first, second, ...rest] = [1, 2, 3, 4, 5];
-// first = 1
-// second = 2
-// rest = [3, 4, 5]
-```
-
-**Object Rest** (ES2018):
-
-```javascript
-const user = { name: 'John', age: 30, city: 'NYC', country: 'USA' };
-const { name, age, ...address } = user;
-// name = 'John'
-// age = 30
-// address = { city: 'NYC', country: 'USA' }
-```
-
-**Common Pattern: Removing Properties**:
-
-```javascript
-const user = { id: 1, password: 'secret', name: 'John', email: 'john@example.com' };
-
-// Remove sensitive data
-const { password, ...safeUser } = user;
-// safeUser = { id: 1, name: 'John', email: 'john@example.com' }
-```
-
-#### Shallow Copy Warning
-
-**Critical Concept**: Spread creates **shallow copies**, not deep copies.
-
-```javascript
-const original = {
-  name: 'John',
-  address: { city: 'NYC' } // Nested object
-};
-
-const copy = { ...original };
-
-// Changing nested object affects both!
-copy.address.city = 'LA';
-console.log(original.address.city); // 'LA' (changed!)
-
-// Top-level changes are isolated
-copy.name = 'Jane';
-console.log(original.name); // 'John' (unchanged)
-```
-
-**Why this happens**:
-
-```text
-original.address ───┐
-                    ├──> { city: 'NYC' } (same object in memory)
-copy.address ───────┘
-```
-
-**For deep copies**, use:
-
-```javascript
-// Option 1: JSON (limited - loses functions, dates, etc.)
-const deepCopy = JSON.parse(JSON.stringify(original));
-
-// Option 2: Lodash
-const deepCopy = _.cloneDeep(original);
-
-// Option 3: structuredClone (modern browsers)
-const deepCopy = structuredClone(original);
+// Deep copy: JSON.parse(JSON.stringify(obj)) or structuredClone(obj)
 ```
 
 ### Arrow Functions
 
-#### What are Arrow Functions?
-
-**Arrow functions** (`=>`) are a shorter syntax for writing function expressions, with special behavior regarding `this` binding.
-
-**Syntax Evolution**:
+**Syntax**:
 
 ```javascript
-// Traditional function expression
-const add = function(a, b) {
-  return a + b;
-};
-
-// Arrow function
-const add = (a, b) => {
-  return a + b;
-};
-
-// Arrow function with implicit return
+// Basic
 const add = (a, b) => a + b;
-```
+x => x * 2; // Single param (no parens)
+() => 'Hello'; // No params
 
-#### Syntax Variations
-
-**No parameters**:
-
-```javascript
-const greet = () => 'Hello';
-```
-
-**One parameter** (parentheses optional):
-
-```javascript
-const double = x => x * 2;
-// or
-const double = (x) => x * 2;
-```
-
-**Multiple parameters** (parentheses required):
-
-```javascript
-const add = (a, b) => a + b;
-```
-
-**Implicit return** (no braces, single expression):
-
-```javascript
-const square = x => x * x;
-const getUser = id => ({ id, name: 'John' });
-// Note: wrap objects in () to distinguish from function body
-```
-
-**Explicit return** (with braces):
-
-```javascript
-const add = (a, b) => {
-  const result = a + b;
-  return result;
-};
+// Implicit return (wrap objects in parens)
+id => ({ id, name: 'John' });
 ```
 
 #### Lexical `this` Binding
@@ -1838,25 +1181,9 @@ const user = {
 };
 ```
 
-**2. Prototype Methods**:
+**DON'T Use**: Object methods, constructors, prototypes, event handlers (needing element as `this`), functions needing `arguments`.
 
-```javascript
-function Person(name) {
-  this.name = name;
-}
-
-// ❌ Arrow function
-Person.prototype.greet = () => {
-  console.log(this.name); // undefined
-};
-
-// ✅ Regular function
-Person.prototype.greet = function() {
-  console.log(this.name); // Works
-};
-```
-
-**3. Event Handlers (when you need the element)**:
+**DO Use**: Callbacks, preserving `this` context, short functional code.
 
 ```javascript
 // If you need 'this' to be the clicked element:
@@ -1921,75 +1248,17 @@ const getUser = id => ({ id, name: 'John' });
 
 ### Template Literals
 
-#### What are Template Literals?
-
-**Template literals** are string literals that allow embedded expressions, multi-line strings, and string interpolation using backticks (`` ` ``) instead of quotes.
-
-**Why they were added**:
-
-- **String interpolation**: Embed variables directly without concatenation
-- **Multi-line strings**: Write strings across multiple lines naturally
-- **Tagged templates**: Process template literals with custom functions
-- **Better readability**: Cleaner than concatenation
-
-#### Basic Syntax
-
-**Before Template Literals (ES5)**:
-
 ```javascript
-// String concatenation (messy)
-var name = 'John';
-var age = 30;
-var message = 'Hello ' + name + ', you are ' + age + ' years old.';
-
-// Multi-line strings (awkward)
-var html = '<div>\n' +
-           '  <h1>' + title + '</h1>\n' +
-           '  <p>' + content + '</p>\n' +
-           '</div>';
-```
-
-**With Template Literals (ES6)**:
-
-```javascript
-// Clean interpolation
-const name = 'John';
-const age = 30;
-const message = `Hello ${name}, you are ${age} years old.`;
-
-// Natural multi-line strings
+// Interpolation & multi-line
+const msg = `Hello ${name}, you are ${age} years old.`;
 const html = `
   <div>
     <h1>${title}</h1>
-    <p>${content}</p>
   </div>
 `;
-```
 
-#### String Interpolation
-
-**Basic Interpolation**:
-
-```javascript
-const name = 'John';
-const age = 30;
-
-const greeting = `Hello, ${name}!`;
-// "Hello, John!"
-```
-
-**Expressions** (not just variables):
-
-```javascript
-const a = 5;
-const b = 10;
-
-console.log(`Sum: ${a + b}`);        // "Sum: 15"
-console.log(`Product: ${a * b}`);    // "Product: 50"
-console.log(`Comparison: ${a > b}`); // "Comparison: false"
-```
-
-**Function Calls**:
+// Expressions
+`Sum: ${a + b}`, `Result: ${fn()}`
 
 ```javascript
 function getFullName(first, last) {
@@ -2092,185 +1361,25 @@ myTag`a${1}b${2}c`
 // Note: strings.length === values.length + 1 (always)
 ```
 
-**Real-World Example: HTML Escaping**:
+**Tagged Templates** (custom processing):
 
 ```javascript
+// HTML escaping
 function safeHTML(strings, ...values) {
-  const escape = str => String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-  
-  return strings.reduce((result, str, i) => {
-    const value = values[i] ? escape(values[i]) : '';
-    return result + str + value;
-  }, '');
+  const escape = v => String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return strings.reduce((a, s, i) => a + s + (values[i] ? escape(values[i]) : ''), '');
 }
-
-const userInput = '<script>alert("XSS")</script>';
 const safe = safeHTML`<div>${userInput}</div>`;
-// "<div>&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;</div>"
+
+// Popular use: styled-components, GraphQL
+const Button = styled.button`background: ${props => props.primary ? 'blue' : 'gray'};`;
+const query = gql`query GetUser($id: ID!) { user(id: $id) { name } }`;
 ```
 
-**Syntax Highlighting Example**:
+**`String.raw`**: Literal backslashes (useful for paths, regex)
 
 ```javascript
-function highlight(strings, ...values) {
-  return strings.reduce((acc, str, i) => {
-    const value = values[i] || '';
-    return `${acc}${str}<mark>${value}</mark>`;
-  }, '');
-}
-
-const name = 'John';
-const age = 30;
-const html = highlight`Name: ${name}, Age: ${age}`;
-// "Name: <mark>John</mark>, Age: <mark>30</mark>"
-```
-
-**i18n (Internationalization) Example**:
-
-```javascript
-const translations = {
-  en: { greeting: 'Hello {0}, you have {1} messages' },
-  es: { greeting: 'Hola {0}, tienes {1} mensajes' }
-};
-
-function i18n(lang) {
-  return function(strings, ...values) {
-    let key = strings.join('{n}').trim();
-    let template = translations[lang][key];
-    
-    values.forEach((val, i) => {
-      template = template.replace(`{${i}}`, val);
-    });
-    
-    return template;
-  };
-}
-
-const t = i18n('es');
-const userName = 'Juan';
-const count = 5;
-const message = t`greeting${userName}${count}`;
-// "Hola Juan, tienes 5 mensajes"
-```
-
-**Styled Components** (React library uses this):
-
-```javascript
-const Button = styled.button`
-  background: ${props => props.primary ? 'blue' : 'gray'};
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  
-  &:hover {
-    background: ${props => props.primary ? 'darkblue' : 'darkgray'};
-  }
-`;
-
-// Usage: <Button primary>Click me</Button>
-```
-
-**GraphQL Queries** (uses tagged templates):
-
-```javascript
-const query = gql`
-  query GetUser($id: ID!) {
-    user(id: $id) {
-      name
-      email
-      posts {
-        title
-      }
-    }
-  }
-`;
-```
-
-#### Raw Strings
-
-**`String.raw` tag function**:
-
-Interprets backslashes literally (doesn't process escape sequences):
-
-```javascript
-// Normal template literal
-const normal = `Line 1\nLine 2`;
-console.log(normal);
-// Line 1
-// Line 2
-
-// Raw template literal
-const raw = String.raw`Line 1\nLine 2`;
-console.log(raw); // "Line 1\nLine 2" (literal \n)
-```
-
-**Use case: File paths on Windows**:
-
-```javascript
-const path = String.raw`C:\Users\John\Documents\file.txt`;
-// No need to escape backslashes!
-```
-
-**Use case: Regular expressions**:
-
-```javascript
-const regex = new RegExp(String.raw`\d+\.\d+`);
-// Easier to read than: new RegExp('\\d+\\.\\d+')
-```
-
-#### Template Literals: Practical Use Cases
-
-**1. Dynamic SQL (be careful with injection!)**:
-
-```javascript
-// ⚠️ Vulnerable to SQL injection
-const query = `SELECT * FROM users WHERE id = ${userId}`;
-
-// ✅ Better: use parameterized queries
-const query = prepared`SELECT * FROM users WHERE id = ${userId}`;
-```
-
-**2. Configuration Files**:
-
-```javascript
-const config = `
-  server {
-    listen ${port};
-    server_name ${domain};
-    root ${rootPath};
-  }
-`;
-```
-
-**3. Email Templates**:
-
-```javascript
-function sendEmail(user, orderNumber) {
-  const email = `
-    Dear ${user.name},
-    
-    Your order #${orderNumber} has been confirmed.
-    Total: $${order.total.toFixed(2)}
-    
-    Thank you for your purchase!
-  `;
-  
-  return sendMail(user.email, 'Order Confirmation', email);
-}
-```
-
-**4. Debug Logging**:
-
-```javascript
-function debugLog(variable) {
-  console.log(`[DEBUG] ${variable.name} = ${JSON.stringify(variable.value)}`);
-}
+String.raw`C:\Users\file.txt`; // No escaping needed
 ```
 
 ### Other Critical ES6+ Features
@@ -3291,187 +2400,55 @@ const fn = level1();
 fn();
 ```
 
-#### Memory Implications
+#### ⚠️ Memory Leaks
 
-**Closures keep outer variables alive**:
-
-```javascript
-function heavy() {
-  const hugeData = new Array(1000000).fill('data'); // ~8MB
-  
-  return function() {
-    console.log('Hello');
-    // Doesn't use hugeData, but hugeData can't be garbage collected!
-  };
-}
-
-const fn = heavy(); // hugeData remains in memory as long as fn exists
-```
-
-**Potential Memory Leak**:
+Closures keep referenced variables alive. Only close over what's needed:
 
 ```javascript
-function attachHandlers() {
-  const largeArray = new Array(1000000);
-  
-  document.getElementById('btn').addEventListener('click', function() {
-    // This closure keeps largeArray in memory
-    console.log('Clicked');
-  });
-}
-
-attachHandlers(); // largeArray won't be GC'd until event listener removed
-```
-
-**Solution**:
-
-```javascript
-function attachHandlers() {
-  const largeArray = new Array(1000000);
-  // Process largeArray
-  const result = process(largeArray);
-  
-  // Only close over what's needed
-  document.getElementById('btn').addEventListener('click', function() {
-    console.log(result); // Only 'result' kept in memory, not largeArray
-  });
+function attach() {
+  const huge = new Array(1e6);
+  const result = process(huge); // Extract what you need
+  btn.onclick = () => console.log(result); // Close over result, not huge
 }
 ```
 
-#### Practical Example: Private Data
+#### Closure Patterns
 
 ```javascript
-function createCounter() {
-  let count = 0; // Private variable
-  
-  return {
-    increment() { return ++count; },
-    decrement() { return --count; },
-    getCount() { return count; }
-  };
+// Private data
+function counter() {
+  let count = 0;
+  return { inc: () => ++count, get: () => count };
 }
 
-const counter = createCounter();
-counter.increment(); // 1
-counter.increment(); // 2
-// count is not directly accessible - true encapsulation
-
-// Even this doesn't work:
-counter.count = 999; // Creates NEW property, doesn't affect closure
-console.log(counter.getCount()); // Still 2
-```
-
-**Common Interview Pitfall** (Loop closure):
-
-```javascript
-// ❌ Common mistake
+// Loop closure (interview pitfall)
 for (var i = 0; i < 3; i++) {
-  setTimeout(() => console.log(i), 100);
+  setTimeout(() => console.log(i), 100); // ❌ 3, 3, 3
 }
-// Output: 3, 3, 3 (var has function scope, not block scope)
-
-// ✅ Solutions
-// 1. Use let (block scope)
 for (let i = 0; i < 3; i++) {
-  setTimeout(() => console.log(i), 100);
+  setTimeout(() => console.log(i), 100); // ✅ 0, 1, 2
 }
-// Output: 0, 1, 2
-
-// 2. IIFE closure
-for (var i = 0; i < 3; i++) {
-  ((j) => {
-    setTimeout(() => console.log(j), 100);
-  })(i);
-}
-// Output: 0, 1, 2
 ```
 
 ### Currying
 
-#### What is Currying?
-
-**Currying** is transforming a function that takes multiple arguments into a sequence of functions, each taking a single argument.
-
-**Named after**: Haskell Curry (mathematician/logician)
-
-**Why currying exists**:
-
-- **Partial application**: Create specialized functions from general ones
-- **Function composition**: Build complex operations from simple ones
-- **Reusability**: Configure functions once, use many times
-- **Functional programming**: Core technique in FP paradigms
-
-#### Basic Concept
+Transform multi-arg function into sequence of single-arg functions:
 
 ```javascript
-// Regular function (takes all args at once)
-function add(a, b, c) {
-  return a + b + c;
-}
-
-add(1, 2, 3); // 6
-
-// Curried version (takes one arg at a time)
-function curriedAdd(a) {
-  return function(b) {
-    return function(c) {
-      return a + b + c;
-    };
-  };
-}
-
-curriedAdd(1)(2)(3); // 6
-
-// ES6 arrow syntax (much cleaner)
-const add = a => b => c => a + b + c;
-```
-
-**How it works**:
-
-```javascript
-// Step by step:
-const add = a => b => c => a + b + c;
-
-const step1 = add(1);      // Returns: b => c => 1 + b + c
-const step2 = step1(2);    // Returns: c => 1 + 2 + c
-const result = step2(3);   // Returns: 1 + 2 + 3 = 6
-
-// Or all at once:
-add(1)(2)(3); // 6
-```
-
-#### Currying vs Partial Application
-
-**Currying**: ALWAYS returns unary functions (one argument at a time)
-
-```javascript
-const curriedAdd = a => b => c => a + b + c;
-
-// Must call with one arg at a time:
-curriedAdd(1)(2)(3); // ✅
-curriedAdd(1, 2, 3); // ❌ Only uses first arg
-```
-
-**Partial Application**: Can accept multiple arguments at once
-
-```javascript
-function curry(fn) {
-  return function curried(...args) {
-    if (args.length >= fn.length) {
-      return fn.apply(this, args);
-    }
-    return (...moreArgs) => curried(...args, ...moreArgs);
-  };
-}
-
+// Regular vs Curried
 const add = (a, b, c) => a + b + c;
-const curriedAdd = curry(add);
+const curried = a => b => c => a + b + c;
 
-// All these work:
-curriedAdd(1)(2)(3);    // ✅ 6
-curriedAdd(1, 2)(3);    // ✅ 6
-curriedAdd(1)(2, 3);    // ✅ 6
-curriedAdd(1, 2, 3);    // ✅ 6
+curried(1)(2)(3); // 6
+const add1 = curried(1); // Partial application
+add1(2)(3); // 6
+
+// Universal curry helper
+const curry = fn => function curried(...args) {
+  return args.length >= fn.length 
+    ? fn(...args) 
+    : (...more) => curried(...args, ...more);
+};
 ```
 
 #### Currying: Practical Use Cases
@@ -3806,207 +2783,39 @@ sum(1, 2, 3, 4, 5); // Works
 
 **`this`** is a special keyword in JavaScript that refers to the context in which a function is executed. Its value is determined at **runtime** based on **how** the function is called, not where it's defined.
 
-**Why `this` exists**:
+**`this`** is determined by **call-site** (where function is called), not where it's written.
 
-- Enables code reuse (same function, different contexts)
-- Implements object-oriented patterns
-- Provides dynamic context binding
-- Allows method sharing across objects
+#### Binding Rules (Priority)
 
-**Critical Concept**: `this` is determined by the **call-site** (where the function is invoked), not the **author-site** (where it's written).
-
-#### The Call-Site
-
-**Call-site** = the location in code where a function is called (not where it's declared).
+**1. `new` Binding** (highest): `this` = new object
 
 ```javascript
-function identify() {
-  console.log(this.name);
-}
-
-const person = { name: 'John' };
-
-// Call-site determines 'this'
-identify();          // Call-site: global scope
-person.identify = identify;
-person.identify();   // Call-site: person object
-identify.call(person); // Call-site: explicitly set to person
+function User(name) { this.name = name; }
+const u = new User('John'); // 'this' = u
 ```
 
-**Finding the call-site**:
+**2. Explicit Binding**: `.call(thisArg, ...args)`, `.apply(thisArg, [args])`, `.bind(thisArg)`
 
 ```javascript
-function outer() {
-  // Call-site for inner()
-  inner(); // ← THIS is the call-site
-}
-
-function inner() {
-  console.log(this);
-}
-
-outer(); // Call-site for outer()
+fn.call(obj, arg1, arg2); // Call with 'this' = obj
+fn.apply(obj, [arg1, arg2]); // Same, array args
+const bound = fn.bind(obj); // Permanent binding (even .call can't override)
 ```
 
-#### Execution Context and ThisBinding
-
-**Every Execution Context has a `ThisBinding` component**:
-
-```text
-Execution Context {
-  LexicalEnvironment: {...},
-  VariableEnvironment: {...},
-  ThisBinding: <value of 'this'> ← Determined at creation time
-}
-```
-
-**When is `this` determined?**
-
-1. Function is called
-2. New Execution Context is created
-3. `this` is bound based on call-site rules
-4. Function executes with that `this` value
-
-#### The Four Binding Rules (Priority Order)
-
-When a function is called, JavaScript applies these rules in order:
-
-#### 1. `new` Binding (Highest Priority)
-
-**When**: Function is called with `new` keyword
-
-**Result**: `this` = newly created object
-
-```javascript
-function User(name, age) {
-  this.name = name;
-  this.age = age;
-  // Implicit: return this;
-}
-
-const user = new User('John', 30);
-// 'this' inside User = the new object
-console.log(user.name); // "John"
-```
-
-**What `new` does (step-by-step)**:
-
-1. Creates a new empty object: `{}`
-2. Links object to constructor's prototype: `obj.__proto__ = User.prototype`
-3. Binds `this` to the new object
-4. Executes constructor function
-5. Returns the object (unless constructor explicitly returns an object)
-
-```javascript
-// What happens internally:
-const user = (function() {
-  const obj = Object.create(User.prototype); // Steps 1 & 2
-  User.call(obj, 'John', 30);                 // Steps 3 & 4
-  return obj;                                 // Step 5
-})();
-```
-
-#### 2. Explicit Binding
-
-**When**: Using `.call()`, `.apply()`, or `.bind()`
-
-**Result**: `this` = the object you explicitly specify
-
-**`.call(thisArg, ...args)`**: Calls function with specific `this` and arguments
-
-```javascript
-function greet(greeting, punctuation) {
-  console.log(`${greeting}, ${this.name}${punctuation}`);
-}
-
-const user = { name: 'John' };
-greet.call(user, 'Hello', '!'); // "Hello, John!"
-// 'this' = user
-```
-
-**`.apply(thisArg, [args])`**: Same as `.call()` but takes array of arguments
-
-```javascript
-greet.apply(user, ['Hello', '!']); // "Hello, John!"
-
-// Useful with Math functions:
-const numbers = [5, 6, 2, 3, 7];
-const max = Math.max.apply(null, numbers);
-// Modern: Math.max(...numbers)
-```
-
-**`.bind(thisArg, ...args)`**: Creates **new function** with `this` permanently bound
-
-```javascript
-const boundGreet = greet.bind(user, 'Hello');
-boundGreet('!'); // "Hello, John!"
-
-// 'this' is permanently bound, cannot be changed
-const other = { name: 'Jane' };
-boundGreet.call(other, '!'); // Still "Hello, John!" (not Jane)
-```
-
-**Hard Binding**: Once bound with `.bind()`, `this` cannot be overridden
-
-```javascript
-function fn() { console.log(this.name); }
-
-const obj1 = { name: 'Object 1' };
-const obj2 = { name: 'Object 2' };
-
-const bound = fn.bind(obj1);
-bound();              // "Object 1"
-bound.call(obj2);     // Still "Object 1" (hard bound)
-bound.apply(obj2);    // Still "Object 1"
-new bound();          // Only 'new' can override (creates new object)
-```
-
-#### 3. Implicit Binding
-
-**When**: Function is called as a method of an object
-
-**Result**: `this` = the object that owns the method
-
-```javascript
-const user = {
-  name: 'John',
-  greet() {
-    console.log(`Hello, ${this.name}`);
-  }
-};
-
-user.greet(); // "Hello, John"
-// 'this' = user (the object before the dot)
-```
-
-**Call-site Analysis**:
+**3. Implicit Binding**: Method call → `this` = object before the dot
 
 ```javascript
 obj.method(); // 'this' = obj
-obj1.obj2.method(); // 'this' = obj2 (immediate parent)
+
+// ⚠️ Lost 'this' (common bug)
+const fn = obj.method;
+fn(); // 'this' lost!
+setTimeout(obj.method, 100); // 'this' lost!
+
+// Fix: Arrow function or .bind()
+setTimeout(() => obj.method(), 100); // ✅
+setTimeout(obj.method.bind(obj), 100); // ✅
 ```
-
-**Lost `this` Problem** (very common bug):
-
-```javascript
-const user = {
-  name: 'John',
-  greet() {
-    console.log(`Hello, ${this.name}`);
-  }
-};
-
-const greet = user.greet; // Reference to function
-greet(); // "Hello, undefined"
-// 'this' is lost! No implicit binding
-
-// Common scenarios:
-setTimeout(user.greet, 1000);        // Lost 'this'
-array.forEach(user.greet);           // Lost 'this'
-button.addEventListener('click', user.greet); // Lost 'this'
-```
-
-**Solutions to Lost `this`**:
 
 ```javascript
 // Solution 1: Arrow function wrapper
@@ -4202,179 +3011,28 @@ obj.process = function() {
 
 ### Scopes
 
-#### What is Scope?
-
-**Scope** is the accessibility/visibility of variables, functions, and objects in a particular part of your code during runtime.
-
-**Why scope exists**:
-
-- **Namespace management**: Prevent variable name collisions
-- **Encapsulation**: Hide implementation details
-- **Memory management**: Variables can be garbage collected when out of scope
-- **Security**: Limit access to sensitive data
-
-#### Types of Scope
-
-#### 1. Global Scope
-
-**Definition**: Variables accessible from anywhere in the code.
+**Global**: Everywhere accessible. **Function** (`var`): Function-scoped, ignores blocks. **Block** (`let`/`const`): Block-scoped. **Lexical**: Inner functions access outer variables (scope chain).
 
 ```javascript
-var globalVar = 'I am global';
-const globalConst = 'Also global';
+// Global
+var global = 'global';
 
-function anyFunction() {
-  console.log(globalVar); // Accessible
-}
-```
-
-**In browsers**:
-
-```javascript
-var x = 10;
-console.log(window.x); // 10 (attached to global object)
-
-let y = 20;
-console.log(window.y); // undefined (let/const not attached to window)
-```
-
-**Global scope pollution** (why it's bad):
-
-```javascript
-// library1.js
-var config = { theme: 'dark' };
-
-// library2.js
-var config = { language: 'en' }; // Overwrites library1's config!
-```
-
-#### 2. Function Scope
-
-**Definition**: Variables declared with `var` are scoped to the enclosing function.
-
-```javascript
-function example() {
-  var x = 10; // Function scoped
-  
-  if (true) {
-    var y = 20; // Still function scoped (NOT block scoped)
-    console.log(x); // 10 (accessible)
-  }
-  
-  console.log(y); // 20 (accessible, hoisted to function scope)
+// Function scope (var)
+function fn() {
+  var x = 1;
+  if (true) { var y = 2; } // y leaks to function scope
+  console.log(y); // 2
 }
 
-console.log(x); // ReferenceError (not in scope)
-```
+// Block scope (let/const)
+{ let x = 1; } // x dies here
+for (let i = 0; i < 3; i++) {} // i dies here
 
-**Why `var` ignores blocks**:
-
-```javascript
-if (true) {
-  var x = 10;
-}
-console.log(x); // 10 (leaked out of if block!)
-
-for (var i = 0; i < 3; i++) {}
-console.log(i); // 3 (leaked out of loop!)
-```
-
-#### 3. Block Scope
-
-**Definition**: Variables declared with `let`/`const` are scoped to the enclosing block `{}`.
-
-```javascript
-{
-  let x = 10;
-  const y = 20;
-  var z = 30;
-}
-
-console.log(x); // ReferenceError (block scoped)
-console.log(y); // ReferenceError (block scoped)
-console.log(z); // 30 (function scoped, leaked out)
-```
-
-**Block scope in `if` statements**:
-
-```javascript
-if (true) {
-  let x = 10;
-  const y = 20;
-}
-console.log(x); // ReferenceError
-```
-
-**Block scope in loops**:
-
-```javascript
-for (let i = 0; i < 3; i++) {
-  setTimeout(() => console.log(i), 100);
-}
-// Output: 0, 1, 2 (each iteration has its own 'i')
-
-for (var j = 0; j < 3; j++) {
-  setTimeout(() => console.log(j), 100);
-}
-// Output: 3, 3, 3 (same 'j' shared across iterations)
-```
-
-#### 4. Lexical Scope (Static Scope)
-
-**Definition**: Inner functions have access to variables from outer functions (scope chain).
-
-```javascript
+// Lexical (scope chain)
 function outer() {
-  const outerVar = 'I am outer';
-  
+  const x = 1;
   function inner() {
-    const innerVar = 'I am inner';
-    console.log(outerVar); // Accessible (lexical scope)
-    console.log(innerVar); // Accessible (own scope)
-  }
-  
-  inner();
-  console.log(innerVar); // ReferenceError (not in scope)
-}
-```
-
-**Scope determined at author-time** (where code is written):
-
-```javascript
-const global = 'global';
-
-function foo() {
-  const fooVar = 'foo';
-  bar(); // What can bar() access?
-}
-
-function bar() {
-  console.log(fooVar); // ReferenceError
-  // bar() was DEFINED in global scope, not inside foo()
-}
-
-foo();
-```
-
-#### Scope Chain
-
-**How variable lookup works**:
-
-```javascript
-const level1 = 'Level 1';
-
-function outer() {
-  const level2 = 'Level 2';
-  
-  function middle() {
-    const level3 = 'Level 3';
-    
-    function inner() {
-      const level4 = 'Level 4';
-      
-      console.log(level4); // 1. Check current scope ✅
-      console.log(level3); // 2. Check parent scope ✅
-      console.log(level2); // 3. Check grandparent scope ✅
+    console.log(x); // Accessible via scope chain
       console.log(level1); // 4. Check global scope ✅
       console.log(notExist); // 5. Not found anywhere ❌ ReferenceError
     }
@@ -4652,169 +3310,25 @@ function outer() {
 
 ### Recursion
 
-#### What is Recursion?
-
-**Recursion** is when a function calls itself until a base condition (terminating case) is met.
-
-**Why recursion exists**:
-
-- **Natural for tree/graph structures**: DOM traversal, file systems
-- **Divide and conquer algorithms**: Quick sort, merge sort
-- **Mathematical elegance**: Factorial, Fibonacci
-- **Backtracking problems**: Maze solving, permutations
-
-**Anatomy of Recursion**:
-
-```javascript
-function recursiveFunction(input) {
-  // 1. Base Case (terminating condition)
-  if (baseConditionMet) {
-    return baseValue;
-  }
-  
-  // 2. Recursive Case (moves toward base case)
-  return recursiveFunction(smallerInput);
-}
-```
-
-#### The Call Stack in Recursion
-
-**Each function call creates a new Stack Frame** containing:
-
-- Local variables
-- Parameters
-- Return address
+Function calling itself. Needs **base case** to stop.
 
 ```javascript
 function factorial(n) {
-  if (n <= 1) return 1;
-  return n * factorial(n - 1);
+  if (n <= 1) return 1; // Base case
+  return n * factorial(n - 1); // Recursive case
 }
 
-factorial(4);
+// Space: O(n) stack frames, Time: O(n)
+// Stack overflow if n > ~10k-15k
 ```
 
-**Call Stack visualization**:
-
-```text
-factorial(4) called:
-  Stack Frame 4: n=4, waiting for factorial(3)
-  Stack Frame 3: n=3, waiting for factorial(2)
-  Stack Frame 2: n=2, waiting for factorial(1)
-  Stack Frame 1: n=1, returns 1
-  
-Unwinding:
-  Stack Frame 1: returns 1
-  Stack Frame 2: returns 2 * 1 = 2
-  Stack Frame 3: returns 3 * 2 = 6
-  Stack Frame 4: returns 4 * 6 = 24
-```
-
-**Memory consumption**:
-
-```text
-Time Complexity: O(n) - n function calls
-Space Complexity: O(n) - n stack frames in memory
-```
-
-#### Stack Overflow
-
-**What is Stack Overflow?**
-
-When recursion depth exceeds the **Call Stack limit** (usually 10,000-15,000 calls in browsers).
+**vs Iteration**: Recursion = readable for trees/graphs but slower + stack risk. Iteration = faster + O(1) space but verbose.
 
 ```javascript
-function infiniteRecursion() {
-  return infiniteRecursion(); // No base case!
-}
-
-infiniteRecursion(); // RangeError: Maximum call stack size exceeded
-```
-
-**Common causes**:
-
-1. **Missing base case**:
-
-```javascript
-function countdown(n) {
-  console.log(n);
-  countdown(n - 1); // Never stops!
-}
-```
-
-**Base case never reached**:
-
-```javascript
-function countdown(n) {
-  if (n === 0) return;
-  console.log(n);
-  countdown(n - 2); // If n is odd, skips 0
-}
-
-countdown(5); // 5, 3, 1, -1, -3... Stack Overflow!
-```
-
-**Input too large**:
-
-```javascript
-factorial(100000); // Stack Overflow even with correct base case
-```
-
-#### Recursion vs Iteration
-
-**Same problem, different approaches**:
-
-```javascript
-// Recursive
-function sumRecursive(n) {
-  if (n <= 0) return 0;
-  return n + sumRecursive(n - 1);
-}
-
-// Iterative
-function sumIterative(n) {
-  let sum = 0;
-  for (let i = 1; i <= n; i++) {
-    sum += i;
-  }
-  return sum;
-}
-```
-
-**Trade-offs**:
-
-| Aspect | Recursion | Iteration |
-|--------|-----------|------------|
-| **Readability** | Often clearer for tree/graph problems | More verbose |
-| **Memory** | O(n) stack space | O(1) constant space |
-| **Performance** | Slower (function call overhead) | Faster |
-| **Stack Overflow Risk** | Yes | No |
-| **Best For** | Trees, graphs, divide-and-conquer | Linear problems, large datasets |
-
-**When to use recursion**:
-
-```javascript
-// Tree traversal (recursion is natural)
-function traverseDOM(node) {
-  console.log(node.nodeName);
-  
-  for (let child of node.children) {
-    traverseDOM(child); // Recursive descent
-  }
-}
-
-// Iterative version is much more complex:
-function traverseDOMIterative(root) {
-  const stack = [root];
-  
-  while (stack.length > 0) {
-    const node = stack.pop();
-    console.log(node.nodeName);
-    
-    for (let i = node.children.length - 1; i >= 0; i--) {
-      stack.push(node.children[i]);
-    }
-  }
+// Use recursion for trees
+function traverse(node) {
+  console.log(node.name);
+  node.children.forEach(traverse);
 }
 ```
 
@@ -5046,180 +3560,46 @@ function fibMemo(n, cache = {}) {
 
 ### Prototypal Inheritance
 
-#### What is Prototypal Inheritance?
-
-**JavaScript uses prototypal inheritance** instead of classical inheritance (like Java/C++).
-
-**Core Concept**: Every object has an internal link to another object called its **prototype**. When a property is accessed, JavaScript searches:
-
-1. The object itself
-2. Its prototype
-3. The prototype's prototype
-4. Until reaching `null`
-
-**Why JavaScript chose prototypes**:
-
-**Historical Context** (1995 - Brendan Eich created JavaScript):
-
-- Needed to compete with Java's "class-based" approach
-- But wanted a simpler, more flexible system
-- **Prototype-based** was easier to implement in 10 days
-- Inspired by **Self** language (prototype-based)
-
-**Benefits of Prototypal Inheritance**:
-
-- **Memory efficient**: Methods shared, not duplicated per instance
-- **Dynamic**: Can modify prototypes at runtime
-- **Simple**: No complex class hierarchies
-- **Flexible**: Objects can inherit from any object
-
-#### The [[Prototype]] Internal Slot
-
-**Every object has a hidden `[[Prototype]]` property** (internal slot).
+Objects inherit from other objects via **prototype chain**. Property lookup: object → prototype → prototype's prototype → `null`.
 
 ```javascript
-const obj = {};
-
-// Internal structure:
-{
-  [[Prototype]]: Object.prototype // ← Hidden internal property
-}
-```
-
-**Accessing [[Prototype]]**:
-
-```javascript
-const obj = {};
-
-// Modern way (ES6):
-Object.getPrototypeOf(obj); // Object.prototype
-
-// Legacy way (don't use in production):
-obj.__proto__; // Object.prototype (property accessor)
-
-// Setting prototype:
-const parent = { a: 1 };
-const child = Object.create(parent); // Sets [[Prototype]] to parent
-```
-
-**`__proto__` vs `prototype` vs `[[Prototype]]`**:
-
-This is **extremely confusing** for beginners:
-
-```javascript
-function Person(name) {
-  this.name = name;
-}
-
-Person.prototype.greet = function() {
-  console.log(`Hello, ${this.name}`);
-};
-
-const john = new Person('John');
-
-// [[Prototype]] - Internal slot (not directly accessible)
-// john.[[Prototype]] - doesn't exist in code
-
-// __proto__ - Property accessor for [[Prototype]]
-john.__proto__ === Person.prototype; // true
-
-// prototype - Property on constructor functions
-Person.prototype; // { greet: [Function], constructor: Person }
-
-// Relationship:
-john.[[Prototype]] === john.__proto__ === Person.prototype
-```
-
-**Terminology**:
-
-- **`[[Prototype]]`**: Internal slot (specification)
-- **`__proto__`**: Accessor property (legacy, avoid)
-- **`prototype`**: Property on functions (used by `new`)
-
-#### The Prototype Chain
-
-**Property Lookup Algorithm**:
-
-When accessing `obj.property`:
-
-```text
-1. Check if 'property' exists on obj itself
-   → If yes, return it
-   → If no, go to step 2
-
-2. Check if 'property' exists on obj.[[Prototype]]
-   → If yes, return it
-   → If no, go to step 3
-
-3. Check if 'property' exists on obj.[[Prototype]].[[Prototype]]
-   → Continue until reaching null
-
-4. If reaches null (end of chain)
-   → Return undefined
-```
-
-**Example**:
-
-```javascript
-const animal = {
-  eats: true,
-  walk() {
-    console.log('Animal walks');
-  }
-};
-
-const rabbit = Object.create(animal);
+const animal = { eats: true };
+const rabbit = Object.create(animal); // rabbit.__proto__ = animal
 rabbit.jumps = true;
 
-// Prototype chain: rabbit → animal → Object.prototype → null
-
-console.log(rabbit.jumps);    // 1. Found on rabbit (own property)
-console.log(rabbit.eats);     // 2. Found on animal (inherited)
-console.log(rabbit.toString); // 3. Found on Object.prototype (inherited)
-console.log(rabbit.fly);      // 4. Reached null, undefined
+console.log(rabbit.jumps); // Own property
+console.log(rabbit.eats); // Inherited from animal
+console.log(rabbit.fly); // undefined (not in chain)
 ```
 
-**Visualization**:
+**`[[Prototype]]` vs `__proto__` vs `prototype`**:
 
-```text
-rabbit
-  │
-  │ [[Prototype]]
-  ↓
-animal
-  │
-  │ [[Prototype]]
-  ↓
-Object.prototype
-  │
-  │ [[Prototype]]
-  ↓
-null (end of chain)
+- `[[Prototype]]`: Internal slot (spec)
+- `__proto__`: Accessor (legacy, avoid)
+- `prototype`: Property on constructor functions
+
+```javascript
+function Person(name) { this.name = name; }
+Person.prototype.greet = function() { console.log(this.name); };
+const p = new Person('John');
+
+p.__proto__ === Person.prototype; // true
+Object.getPrototypeOf(p) === Person.prototype; // true (modern)
 ```
 
-#### Constructor Functions (Pre-ES6)
-
-**Pattern**:
+#### Constructor Functions
 
 ```javascript
 function Person(name, age) {
-  // Instance properties
-  this.name = name;
+  this.name = name; // Instance property
   this.age = age;
 }
 
-// Shared methods (on prototype)
-Person.prototype.greet = function() {
-  console.log(`Hello, I'm ${this.name}`);
+Person.prototype.greet = function() { // Shared method
+  console.log(`Hello, ${this.name}`);
 };
 
 const john = new Person('John', 30);
-```
-
-**What `new` does (4 steps)**:
-
-```javascript
-function Person(name, age) {
   // When called with 'new':
   
   // 1. Create new empty object
@@ -7504,22 +5884,3 @@ function promiseAll(promises) {
 - [LeetCode](https://leetcode.com/) - Algorithm problems
 - [HackerRank](https://www.hackerrank.com/) - JavaScript challenges
 - [Exercism](https://exercism.org/) - Mentored code practice
-
-### Final Notes
-
-This document covers the core JavaScript fundamentals required for senior-level technical interviews. Master these concepts through:
-
-1. **Understanding over memorization** - Know WHY things work, not just HOW
-2. **Practice with real examples** - Build projects that use these concepts
-3. **Debug systematically** - Use browser DevTools and Node.js debugger
-4. **Read quality code** - Study popular open-source libraries
-5. **Teach others** - Explaining concepts solidifies understanding
-
-**Remember**: JavaScript is evolving constantly. Stay updated with:
-
-- TC39 proposals (new language features)
-- Browser compatibility (caniuse.com)
-- Performance best practices
-- Modern framework patterns (React, Vue, Angular)
-
-Good luck with your interviews! 🚀

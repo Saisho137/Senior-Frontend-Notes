@@ -1012,361 +1012,103 @@ id => ({ id, name: 'John' });
 
 #### Lexical `this` Binding
 
-**This is the MAIN difference from regular functions.**
-
-**What "Lexical" Means**:
-
-- Arrow functions don't create their own `this`
-- They inherit `this` from the enclosing scope
-- `this` is determined at **author-time** (where function is defined), not **call-time** (where function is called)
-
-**Regular Function vs Arrow Function**:
+**The MAIN difference from regular functions**: Arrow functions don't create their own `this` - they inherit it from the enclosing scope at **definition time** (not call time).
 
 ```javascript
 const obj = {
   name: 'Object',
-  
-  regularFunction: function() {
-    console.log(this.name); // 'this' = obj (where it's called)
-  },
-  
-  arrowFunction: () => {
-    console.log(this.name); // 'this' = global/window (where it's defined)
-  }
+  regular: function() { console.log(this.name); }, // 'this' = obj
+  arrow: () => { console.log(this.name); }          // 'this' = global/undefined
 };
 
-obj.regularFunction(); // "Object"
-obj.arrowFunction();   // undefined (or global name)
-```
+obj.regular(); // "Object"
+obj.arrow();   // undefined
 
-**Why Lexical `this` is Useful**:
-
-**Problem with Regular Functions**:
-
-```javascript
+// Why it's useful: Callbacks preserve 'this'
 class Timer {
   constructor() {
     this.seconds = 0;
-    
-    // ❌ Doesn't work - 'this' becomes undefined
-    setInterval(function() {
-      this.seconds++; // Error: Cannot read property 'seconds' of undefined
-    }, 1000);
-  }
-}
-
-// Old solutions:
-// 1. Store 'this'
-var self = this;
-setInterval(function() { self.seconds++; }, 1000);
-
-// 2. .bind(this)
-setInterval(function() { this.seconds++; }.bind(this), 1000);
-```
-
-**Solution with Arrow Functions**:
-
-```javascript
-class Timer {
-  constructor() {
-    this.seconds = 0;
-    
-    // ✅ Works! Arrow function inherits 'this' from constructor
-    setInterval(() => {
-      this.seconds++;
-    }, 1000);
+    setInterval(() => this.seconds++, 1000); // ✅ 'this' preserved
+    // vs: setInterval(function() { this.seconds++; }, 1000); // ❌ 'this' lost
   }
 }
 ```
 
-**Event Handlers Example**:
-
-```javascript
-class Button {
-  constructor() {
-    this.clicks = 0;
-    
-    // ❌ Regular function - loses 'this'
-    document.getElementById('btn').addEventListener('click', function() {
-      this.clicks++; // Error: 'this' is the button element, not Button instance
-    });
-    
-    // ✅ Arrow function - preserves 'this'
-    document.getElementById('btn').addEventListener('click', () => {
-      this.clicks++; // Works! 'this' is Button instance
-    });
-  }
-}
-```
+> **See also**: [`this` Context](#this-context) for complete binding rules and priority.
 
 #### What Arrow Functions DON'T Have
 
-**1. No `this` binding**:
+| Feature | Arrow Functions | Regular Functions |
+|---------|-----------------|-------------------|
+| `this` binding | ❌ Inherits from scope | ✅ Own binding |
+| `arguments` object | ❌ Use `...rest` instead | ✅ Available |
+| `new` constructor | ❌ TypeError | ✅ Works |
+| `prototype` property | ❌ undefined | ✅ Exists |
+| `call/apply/bind` for `this` | ❌ Can't change | ✅ Works |
+
+#### When to Use (and When NOT to)
+
+| Use Case | Arrow ✅ | Regular ✅ |
+|----------|---------|------------|
+| Callbacks (`map`, `filter`, etc.) | ✅ Preferred | ✓ Works |
+| Preserving `this` in classes | ✅ Ideal | ❌ Needs `.bind()` |
+| Object methods | ❌ No own `this` | ✅ Required |
+| Constructors (`new`) | ❌ TypeError | ✅ Required |
+| Event handlers needing element | ❌ `this` is outer | ✅ `this` is element |
+| Dynamic `this` with `call/apply` | ❌ Can't change | ✅ Works |
 
 ```javascript
-const obj = {
-  method: () => {
-    console.log(this); // 'this' is NOT obj
-  }
-};
-```
+// ✅ Callbacks: Arrow is cleaner
+numbers.map(n => n * 2);
+fetch(url).then(res => res.json()).then(data => this.process(data));
 
-**2. No `arguments` object**:
-
-```javascript
-// Regular function
-function regular() {
-  console.log(arguments); // Works
-}
-
-// Arrow function
-const arrow = () => {
-  console.log(arguments); // ReferenceError
-};
-
-// Use rest parameters instead
-const arrow = (...args) => {
-  console.log(args); // ✅ Works
-};
-```
-
-**3. Cannot be used as constructors**:
-
-```javascript
-const Person = (name) => {
-  this.name = name;
-};
-
-const p = new Person('John'); // TypeError: Person is not a constructor
-```
-
-**4. No `prototype` property**:
-
-```javascript
-const regular = function() {};
-console.log(regular.prototype); // {} (exists)
-
-const arrow = () => {};
-console.log(arrow.prototype); // undefined
-```
-
-**5. Cannot be used with `call()`, `apply()`, or `bind()` to change `this`**:
-
-```javascript
-const arrow = () => console.log(this);
-const obj = { name: 'Object' };
-
-arrow.call(obj);  // 'this' is NOT obj
-arrow.apply(obj); // 'this' is NOT obj
-const bound = arrow.bind(obj);
-bound(); // 'this' is still NOT obj
-
-// 'this' remains lexically bound, cannot be changed
-```
-
-#### When NOT to Use Arrow Functions
-
-**1. Object Methods** (need dynamic `this`):
-
-```javascript
+// ✅ Object methods: Use regular
 const user = {
   name: 'John',
-  
-  // ❌ Arrow function - 'this' is NOT user
-  greet: () => {
-    console.log(`Hello, ${this.name}`); // undefined
-  },
-  
-  // ✅ Regular method
-  greet() {
-    console.log(`Hello, ${this.name}`); // "Hello, John"
-  }
+  greet() { console.log(this.name); } // ✅ 'this' = user
+  // greet: () => { console.log(this.name); } // ❌ undefined
 };
-```
 
-**DON'T Use**: Object methods, constructors, prototypes, event handlers (needing element as `this`), functions needing `arguments`.
-
-**DO Use**: Callbacks, preserving `this` context, short functional code.
-
-```javascript
-// If you need 'this' to be the clicked element:
+// ✅ Event handlers needing element: Use regular
 button.addEventListener('click', function() {
-  this.classList.toggle('active'); // ✅ 'this' is button
+  this.classList.toggle('active'); // 'this' = button element
 });
-
-button.addEventListener('click', () => {
-  this.classList.toggle('active'); // ❌ 'this' is NOT button
-});
-```
-
-**4. Functions with `arguments` object**:
-
-```javascript
-// If you need the arguments object:
-function sum() {
-  return Array.from(arguments).reduce((a, b) => a + b);
-}
-
-// Arrow version needs rest parameters:
-const sum = (...args) => args.reduce((a, b) => a + b);
-```
-
-#### When TO Use Arrow Functions
-
-**1. Callbacks** (most common use):
-
-```javascript
-const numbers = [1, 2, 3, 4, 5];
-
-// ✅ Perfect for map, filter, reduce
-const doubled = numbers.map(n => n * 2);
-const evens = numbers.filter(n => n % 2 === 0);
-```
-
-**2. Preserving `this` context**:
-
-```javascript
-class API {
-  constructor() {
-    this.baseURL = 'https://api.example.com';
-  }
-  
-  fetchData() {
-    // ✅ Arrow function preserves 'this'
-    fetch(this.baseURL)
-      .then(res => res.json())
-      .then(data => this.processData(data));
-  }
-}
-```
-
-**3. Short, functional code**:
-
-```javascript
-// ✅ Clean and readable
-const add = (a, b) => a + b;
-const square = x => x * x;
-const getUser = id => ({ id, name: 'John' });
 ```
 
 ### Template Literals
 
+**Interpolation, expressions, multi-line**:
+
 ```javascript
-// Interpolation & multi-line
+// Basic interpolation
 const msg = `Hello ${name}, you are ${age} years old.`;
-const html = `
-  <div>
-    <h1>${title}</h1>
-  </div>
-`;
 
-// Expressions
-`Sum: ${a + b}`, `Result: ${fn()}`
+// Expressions & function calls
+`Sum: ${a + b}`, `Result: ${fn()}`, `Name: ${getFullName('John', 'Doe')}`
 
-```javascript
-function getFullName(first, last) {
-  return `${first} ${last}`;
-}
-
-const message = `Welcome, ${getFullName('John', 'Doe')}!`;
-// "Welcome, John Doe!"
-```
-
-**Nested Template Literals**:
-
-```javascript
-const isActive = true;
-const user = { name: 'John', role: 'admin' };
-
-const badge = `
-  <span class="${isActive ? 'active' : 'inactive'}">
-    ${user.name} (${user.role})
-  </span>
-`;
-```
-
-#### Multi-line Strings
-
-**Preserves formatting**:
-
-```javascript
-const poem = `
-  Roses are red,
-  Violets are blue,
-  Template literals
-  Are great for you!
-`;
-
-// All whitespace and newlines are preserved
-```
-
-**SQL Queries**:
-
-```javascript
-const userId = 123;
-const query = `
-  SELECT u.name, u.email, o.total
-  FROM users u
-  JOIN orders o ON u.id = o.user_id
-  WHERE u.id = ${userId}
-  ORDER BY o.created_at DESC
-`;
-```
-
-**HTML Templates**:
-
-```javascript
-const user = { name: 'John', avatar: '/img/john.jpg' };
-
+// Multi-line (preserves whitespace)
 const html = `
   <div class="user-card">
-    <img src="${user.avatar}" alt="${user.name}">
-    <h2>${user.name}</h2>
+    <h1>${title}</h1>
+    <p class="${isActive ? 'active' : 'inactive'}">${user.name}</p>
   </div>
 `;
 ```
 
 #### Tagged Templates (Advanced)
 
-**What are Tagged Templates?**
-
-A **tag function** processes a template literal, giving you control over how the string is constructed.
-
-**Syntax**:
-
-```javascript
-tagFunction`template ${expression} literal`;
-//          ^ No parentheses!
-```
-
-**How it works**:
+**Tag functions** process template literals with full control over string construction:
 
 ```javascript
 function myTag(strings, ...values) {
-  // strings: array of string literals
-  // values: array of evaluated expressions
-  console.log(strings); // ['Hello ', ' and ', '!']
-  console.log(values);  // ['John', 'Jane']
-  
-  return 'processed string';
+  // strings = ['Hello ', ' and ', '!']
+  // values = ['John', 'Jane']
+  return strings.reduce((acc, s, i) => acc + s + (values[i] || ''), '');
 }
 
-const result = myTag`Hello ${'John'} and ${'Jane'}!`;
-```
+myTag`Hello ${'John'} and ${'Jane'}!`;
 
-**Structure passed to tag function**:
-
-```javascript
-myTag`a${1}b${2}c`
-// strings = ['a', 'b', 'c']
-// values = [1, 2]
-
-// Note: strings.length === values.length + 1 (always)
-```
-
-**Tagged Templates** (custom processing):
-
-```javascript
+// Common uses:
 // HTML escaping
 function safeHTML(strings, ...values) {
   const escape = v => String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1374,14 +1116,11 @@ function safeHTML(strings, ...values) {
 }
 const safe = safeHTML`<div>${userInput}</div>`;
 
-// Popular use: styled-components, GraphQL
+// Popular libraries: styled-components, GraphQL
 const Button = styled.button`background: ${props => props.primary ? 'blue' : 'gray'};`;
 const query = gql`query GetUser($id: ID!) { user(id: $id) { name } }`;
-```
 
-**`String.raw`**: Literal backslashes (useful for paths, regex)
-
-```javascript
+// String.raw: Literal backslashes
 String.raw`C:\Users\file.txt`; // No escaping needed
 ```
 
@@ -1398,816 +1137,200 @@ String.raw`C:\Users\file.txt`; // No escaping needed
 
 ## WeakMap/WeakSet
 
-### What are WeakMap and WeakSet?
+### Core Concept: Weak References
 
-**WeakMap** and **WeakSet** are collections similar to Map and Set, but with a critical difference: they hold **weak references** to their keys/values.
+**WeakMap** and **WeakSet** hold **weak references** to keys/values - they don't prevent garbage collection.
 
-**Why they exist**:
+| Aspect | Strong Reference (Map/Set) | Weak Reference (WeakMap/WeakSet) |
+|--------|---------------------------|----------------------------------|
+| **Keys** | Any type | Objects only |
+| **GC** | Prevents collection | Allows collection |
+| **Iteration** | ✅ `.keys()`, `.values()`, `.forEach()` | ❌ Not possible |
+| **`.size`** | ✅ Available | ❌ Not available |
+| **Memory Leaks** | Possible if not cleaned | Auto-prevented |
 
-- **Prevent memory leaks**: Associate data with objects without preventing garbage collection
-- **Automatic cleanup**: No need to manually remove entries when objects are destroyed
-- **DOM metadata**: Safely store data about DOM elements that may be removed
-- **Private data**: Store private object data without exposing it
-
-#### Understanding Garbage Collection
-
-**What is Garbage Collection?**
-
-Automatic memory management that frees memory occupied by objects that are no longer **reachable**.
-
-**Reachability**:
-
-An object is **reachable** if it can be accessed from:
-
-1. **Global scope** variables
-2. **Currently executing function** (local variables, parameters)
-3. **Call stack** (variables in functions that are waiting)
-4. **Any reference** from another reachable object
-
-**Mark-and-Sweep Algorithm** (JavaScript GC):
-
-```text
-Phase 1: Mark
-- Start from roots (global variables, call stack)
-- Traverse all references, mark reachable objects
-
-Phase 2: Sweep
-- Go through all objects in memory
-- Delete unmarked (unreachable) objects
-- Free memory
-```
-
-**Example**:
+### Why They Exist
 
 ```javascript
-let user = { name: 'John' };
+// Problem with Map: Memory leak
+const cache = new Map();
+let obj = { data: 'huge' };
+cache.set(obj, 'metadata');
+obj = null; // Object NOT garbage collected (Map holds strong reference)
 
-// user is reachable (referenced by global variable)
-
-user = null; // No more references
-
-// { name: 'John' } is now unreachable
-// Garbage collector will free this memory
+// Solution with WeakMap: Auto-cleanup
+const cache = new WeakMap();
+let obj = { data: 'huge' };
+cache.set(obj, 'metadata');
+obj = null; // Object CAN be garbage collected (WeakMap allows it)
 ```
 
-#### Strong vs Weak References
+### WeakMap: Key Patterns
 
-**Strong Reference** (regular variables):
-
-```javascript
-const obj = { data: 'important' };
-const references = [obj]; // Strong reference
-
-// Even if obj is set to null:
-obj = null;
-
-// Object is still reachable through 'references' array
-console.log(references[0].data); // "important"
-
-// Object is NOT garbage collected
-```
-
-**Weak Reference** (WeakMap/WeakSet):
-
-```javascript
-let obj = { data: 'important' };
-const weakMap = new WeakMap();
-weakMap.set(obj, 'metadata');
-
-// WeakMap holds a WEAK reference to obj
-
-obj = null; // Remove strong reference
-
-// obj is now unreachable (no strong references)
-// Garbage collector CAN collect obj
-// WeakMap entry is automatically removed
-```
-
-**Critical Difference**:
-
-- **Strong reference**: Keeps object alive (prevents GC)
-- **Weak reference**: Doesn't keep object alive (allows GC)
-
-#### WeakMap Deep Dive
-
-**Structure**:
-
-```javascript
-const weakMap = new WeakMap();
-```
-
-**Characteristics**:
-
-1. **Keys MUST be objects** (not primitives):
-
-```javascript
-const wm = new WeakMap();
-
-const obj = {};
-wm.set(obj, 'value'); // ✅ Works
-
-wm.set('string', 'value'); // ❌ TypeError: Invalid value used as weak map key
-wm.set(42, 'value');       // ❌ TypeError
-wm.set(null, 'value');     // ❌ TypeError
-```
-
-**Why?** Primitives are never garbage collected (they're values, not references).
-
-**No iteration methods**:
-
-```javascript
-const wm = new WeakMap();
-
-// These don't exist:
-wm.keys();    // undefined
-wm.values();  // undefined
-wm.entries(); // undefined
-wm.forEach(); // undefined
-wm.size;      // undefined
-```
-
-**Why?** Entries can be garbage collected at any time, making iteration non-deterministic.
-
-**Available methods**:
+**Available methods**: `.set(obj, value)`, `.get(obj)`, `.has(obj)`, `.delete(obj)`
 
 ```javascript
 const wm = new WeakMap();
 const obj = {};
 
-wm.set(obj, 'value');    // Add entry
-wm.get(obj);             // 'value'
-wm.has(obj);             // true
-wm.delete(obj);          // true (manually remove)
+wm.set(obj, 'value');    // ✅ Works (object key)
+wm.set('string', 'v');   // ❌ TypeError (primitives not allowed)
 ```
 
-#### WeakMap Use Cases
-
-**1. Private Data Storage** (before `#private` fields):
+**Use Cases**:
 
 ```javascript
+// 1. Private Data (before #private fields)
 const privateData = new WeakMap();
-
-class User {
-  constructor(name, ssn) {
-    this.name = name; // Public
-    privateData.set(this, { ssn }); // Private
-  }
-  
-  getSSN() {
-    return privateData.get(this).ssn;
-  }
-}
-
-const user = new User('John', '123-45-6789');
-console.log(user.name);    // "John" (accessible)
-console.log(user.ssn);     // undefined (not accessible)
-console.log(user.getSSN()); // "123-45-6789" (via method)
-
-// When user is garbage collected, private data is too
-```
-
-**Why this prevents memory leaks**:
-
-```javascript
-// Bad (with regular Map):
-const privateData = new Map();
-
 class User {
   constructor(name, ssn) {
     this.name = name;
-    privateData.set(this, { ssn }); // Strong reference!
+    privateData.set(this, { ssn }); // Private, auto-cleaned on GC
   }
+  getSSN() { return privateData.get(this).ssn; }
 }
 
-let user = new User('John', '123');
-user = null;
-
-// User instance is NOT garbage collected!
-// Map still holds strong reference
-// Memory leak!
-```
-
-**2. Caching/Memoization**:
-
-```javascript
+// 2. Caching (auto-eviction)
 const cache = new WeakMap();
-
-function expensiveOperation(obj) {
-  // Check cache
-  if (cache.has(obj)) {
-    console.log('Cache hit!');
-    return cache.get(obj);
-  }
-  
-  // Expensive computation
-  console.log('Computing...');
-  const result = JSON.stringify(obj).length * 1000;
-  
-  // Store in cache
+function expensive(obj) {
+  if (cache.has(obj)) return cache.get(obj);
+  const result = /* compute */;
   cache.set(obj, result);
   return result;
 }
 
-const data = { huge: 'object' };
-expensiveOperation(data); // "Computing..."
-expensiveOperation(data); // "Cache hit!"
-
-// If 'data' is no longer used:
-data = null;
-// Cache entry is automatically removed (no memory leak)
+// 3. DOM Metadata (no manual cleanup needed)
+const domMeta = new WeakMap();
+function attachData(el, data) { domMeta.set(el, data); }
+button.remove(); // Metadata auto-cleaned when element is GC'd
 ```
 
-**3. DOM Node Metadata**:
+### WeakSet: Key Patterns
+
+**Available methods**: `.add(obj)`, `.has(obj)`, `.delete(obj)`
 
 ```javascript
-const domMetadata = new WeakMap();
-
-function attachMetadata(element, data) {
-  domMetadata.set(element, data);
+// 1. Track Processed Objects
+const processed = new WeakSet();
+function process(item) {
+  if (processed.has(item)) return; // Already processed
+  /* ... */
+  processed.add(item);
 }
 
-function getMetadata(element) {
-  return domMetadata.get(element);
-}
-
-// Usage:
-const button = document.querySelector('#myButton');
-attachMetadata(button, { clicks: 0, lastClicked: null });
-
-button.addEventListener('click', () => {
-  const meta = getMetadata(button);
-  meta.clicks++;
-  meta.lastClicked = new Date();
-});
-
-// If button is removed from DOM:
-button.remove();
-
-// And no other references exist:
-// button and its metadata are garbage collected
-// No memory leak!
-```
-
-**Memory leak example (without WeakMap)**:
-
-```javascript
-// Bad:
-const domMetadata = new Map(); // Strong references
-
-function attachMetadata(element, data) {
-  domMetadata.set(element, data);
-}
-
-const button = document.querySelector('#myButton');
-attachMetadata(button, { data: 'example' });
-
-// Remove button:
-button.remove();
-
-// Button is removed from DOM, but:
-// - Map still holds strong reference to button
-// - Button is NOT garbage collected
-// - Memory leak!
-
-// Solution: Manually clean up
-domMetadata.delete(button); // Must remember to do this!
-```
-
-#### WeakSet Deep Dive
-
-**Structure**:
-
-```javascript
-const weakSet = new WeakSet();
-```
-
-**Characteristics**:
-
-1. **Values MUST be objects**:
-
-```javascript
-const ws = new WeakSet();
-
-const obj = {};
-ws.add(obj); // ✅ Works
-
-ws.add('string'); // ❌ TypeError
-ws.add(42);       // ❌ TypeError
-```
-
-**No iteration methods** (same reason as WeakMap)
-
-**Available methods**:
-
-```javascript
-const ws = new WeakSet();
-const obj = {};
-
-ws.add(obj);     // Add object
-ws.has(obj);     // true
-ws.delete(obj);  // true (manually remove)
-```
-
-#### WeakSet Use Cases
-
-**1. Tracking Processed Objects**:
-
-```javascript
-const processedItems = new WeakSet();
-
-function processItem(item) {
-  if (processedItems.has(item)) {
-    console.log('Already processed');
-    return;
-  }
-  
-  console.log('Processing...');
-  // ... expensive operation ...
-  
-  processedItems.add(item);
-}
-
-const obj1 = { id: 1 };
-const obj2 = { id: 2 };
-
-processItem(obj1); // "Processing..."
-processItem(obj1); // "Already processed"
-processItem(obj2); // "Processing..."
-
-// When obj1 is no longer referenced:
-obj1 = null;
-// It's automatically removed from processedItems
-```
-
-**2. Marking Objects (Flags)**:
-
-```javascript
-const disabledElements = new WeakSet();
-
-function disableElement(element) {
-  disabledElements.add(element);
-  element.disabled = true;
-}
-
-function isDisabled(element) {
-  return disabledElements.has(element);
-}
-
-const input = document.querySelector('input');
-disableElement(input);
-
-console.log(isDisabled(input)); // true
-
-// When input is removed and garbage collected,
-// it's automatically removed from disabledElements
-```
-
-**3. Preventing Circular Reference Issues**:
-
-```javascript
+// 2. Prevent Circular Reference Loops
 const visited = new WeakSet();
-
 function traverse(node) {
-  if (visited.has(node)) {
-    return; // Prevent infinite loop
-  }
-  
+  if (visited.has(node)) return; // Circular check
   visited.add(node);
-  console.log(node.name);
-  
-  // Traverse children
   node.children?.forEach(traverse);
 }
-
-// Circular structure:
-const parent = { name: 'Parent', children: [] };
-const child = { name: 'Child', children: [parent] };
-parent.children.push(child);
-
-traverse(parent); // Safely handles circular references
 ```
 
-#### Why WeakMap/WeakSet Can't Be Iterated
+### Why No Iteration?
 
-**The Problem**:
-
-```javascript
-const wm = new WeakMap();
-let obj = { data: 'example' };
-wm.set(obj, 'value');
-
-// If we could iterate:
-for (let [key, value] of wm) { // ❌ Doesn't exist
-  console.log(key, value);
-}
-
-// During iteration:
-obj = null; // Object becomes unreachable
-
-// Garbage collector runs (non-deterministic)
-// Entry might be removed MID-ITERATION
-// Iterator becomes invalid!
-```
-
-**The Solution**: No iteration allowed
-
-- Can't observe when GC runs
-- Can't provide consistent iteration
-- Entries may disappear at any time
-
-#### Comparison: Map/Set vs WeakMap/WeakSet
-
-| Feature | Map/Set | WeakMap/WeakSet |
-|---------|---------|------------------|
-| **Keys/Values** | Any type | Objects only |
-| **References** | Strong | Weak |
-| **Iteration** | Yes (`.keys()`, `.values()`, `.entries()`, `.forEach()`) | No |
-| **`.size`** | Yes | No |
-| **GC** | Prevents GC | Allows GC |
-| **Use Case** | General collections | Metadata, caching, private data |
-| **Memory Leaks** | Possible if not cleaned | Prevented automatically |
-
-**When to use each**:
-
-```javascript
-// Use Map when:
-// - Need to iterate over entries
-// - Need to know collection size
-// - Keys are primitives
-// - Want to prevent GC (keep references alive)
-
-const userRoles = new Map();
-userRoles.set('user1', 'admin');
-userRoles.set('user2', 'editor');
-
-// Use WeakMap when:
-// - Associating metadata with objects
-// - Don't want to prevent GC
-// - Keys are objects that may be removed
-// - Preventing memory leaks is critical
-
-const objectMetadata = new WeakMap();
-objectMetadata.set(domElement, { clicks: 0 });
-```
+Entries can be garbage collected **at any time** (non-deterministic). Iteration would be inconsistent - an entry might disappear mid-loop.
 
 ---
 
 ## Modules (ES6 vs. CommonJS)
 
-### Why Module Systems Exist
-
-**JavaScript Without Modules (Pre-2009)**:
-
-Before module systems, JavaScript applications faced critical problems:
-
-#### 1. Global Scope Pollution
+### The Problem (Pre-Modules)
 
 ```javascript
-// file1.js
-var userName = 'John';
-function getUserData() { /* ... */ }
+// Global scope pollution + no encapsulation
+var apiKey = 'secret'; // Exposed globally!
+var userName = 'John'; // Overwritten by other files!
 
-// file2.js
-var userName = 'Jane'; // Accidentally overwrites file1's userName!
-function getUserData() { /* ... */ } // Overwrites function!
-
-// All <script> tags share the same global scope
+// No dependency management (order-dependent scripts)
+<script src="jquery.js"></script>           // Must load first
+<script src="jquery-plugin.js"></script>   // Depends on jQuery
 ```
 
-#### 2. No Dependency Management
+**Early solution**: IIFE pattern (creates private scope but manual, no tree-shaking)
 
-```html
-<!-- Order matters! Must load in correct sequence -->
-<script src="jquery.js"></script>
-<script src="jquery-plugin.js"></script> <!-- Depends on jQuery -->
-<script src="app.js"></script> <!-- Depends on both -->
-```
-
-If order is wrong, application breaks. No way to express dependencies explicitly.
-
-#### 3. No Encapsulation
+### ES6 Modules (ESM) — The Standard
 
 ```javascript
-// Everything is globally accessible
-var apiKey = 'secret-key-123'; // Exposed to entire app!
-// No way to hide implementation details
-```
-
-**Early Solutions**:
-
-**IIFE Pattern** (Immediately Invoked Function Expression):
-
-```javascript
-// Creates private scope
-var myModule = (function() {
-  var privateVar = 'secret';
-  
-  return {
-    publicMethod: function() {
-      return privateVar;
-    }
-  };
-})();
-
-myModule.publicMethod(); // Works
-myModule.privateVar; // undefined (private!)
-```
-
-**Revealing Module Pattern**:
-
-```javascript
-var calculator = (function() {
-  var result = 0;
-  
-  function add(x) { result += x; }
-  function getResult() { return result; }
-  
-  // Reveal only what you want public
-  return {
-    add: add,
-    getResult: getResult
-  };
-})();
-```
-
-**Problems with these patterns**:
-
-- Still manually managing `<script>` order
-- No standard way to declare dependencies
-- No built-in way to load modules dynamically
-- Build tools couldn't optimize effectively
-
-### CommonJS: Node.js Solution (2009)
-
-**Why it was created**:
-
-- Node.js needed server-side modules
-- Couldn't use `<script>` tags (no browser)
-- Needed synchronous loading (file system is fast)
-- Inspired by ServerJS (server-side JavaScript standards)
-
-**How CommonJS Works**:
-
-```javascript
-// Each file is a module with own scope
-// module.js
-const privateVar = 'secret';
-
-function privateFunction() {
-  return privateVar;
-}
-
-// Explicitly export what's public
-module.exports = {
-  publicFunction: privateFunction
-};
-
-// app.js
-const myModule = require('./module'); // Synchronous load
-myModule.publicFunction(); // Works
-myModule.privateVar; // undefined (not exported)
-```
-
-**Module Wrapping**:
-
-Node.js wraps each module in a function:
-
-```javascript
-// Your code:
-const x = 10;
-module.exports = x;
-
-// Actually executed as:
-(function(exports, require, module, __filename, __dirname) {
-  const x = 10;
-  module.exports = x;
-});
-```
-
-This creates module scope and provides `module`, `exports`, `require`.
-
-### ES6 Modules (ESM): Standard Solution (2015)
-
-**Why a new standard was needed**:
-
-- CommonJS was Node.js-specific (not browser standard)
-- Synchronous loading doesn't work for browsers (network is slow)
-- **Static analysis impossible** - can't optimize without running code
-- JavaScript needed a universal, standardized module system
-
-#### Key Innovation: Static Structure
-
-**CommonJS (Dynamic)**:
-
-```javascript
-// Can require() anywhere, even conditionally
-if (condition) {
-  const module = require('./module'); // Runtime decision
-}
-
-// Can't analyze dependencies without running code
-const moduleName = 'module-' + version;
-require(moduleName); // Unknown until runtime
-```
-
-**ES6 Modules (Static)**:
-
-```javascript
-// Imports must be at top level
-import { feature } from './module'; // Analyzed at parse time
-
-// This is NOT allowed:
-if (condition) {
-  import { feature } from './module'; // ❌ Syntax Error
-}
-
-// For dynamic imports, use import():
-if (condition) {
-  const { feature } = await import('./module'); // ✅ Runtime loading
-}
-```
-
-**Benefits of Static Structure**:
-
-#### Tree Shaking (Dead Code Elimination)
-
-```javascript
-// utils.js
-export function usedFunction() { /* ... */ }
-export function unusedFunction() { /* ... */ }
-
-// app.js
-import { usedFunction } from './utils';
-
-// Bundler can detect unusedFunction is never imported
-// → Removes it from final bundle (smaller file size)
-```
-
-With CommonJS, bundlers can't be sure what's used:
-
-```javascript
-const utils = require('./utils');
-// Bundler doesn't know which properties are accessed
-// Must include entire module
-```
-
-#### Early Error Detection
-
-```javascript
-// ESM: Error at parse time (before execution)
-import { typo } from './module'; // SyntaxError immediately
-
-// CJS: Error at runtime (when line executes)
-const { typo } = require('./module'); // Error only when this runs
-```
-
-#### Better IDE Support
-
-Static imports enable autocomplete and refactoring:
-
-```javascript
-import { feature } from './module';
-//      ^-- IDE knows what's exported, provides autocomplete
-```
-
-### Live Bindings vs Value Copies
-
-**Critical Difference**:
-
-**CommonJS** exports copies (primitives) or references (objects):
-
-```javascript
-// counter.js (CommonJS)
-let count = 0;
-module.exports = {
-  count: count, // Exports COPY of primitive
-  increment() { count++; }
-};
-
-// app.js
-const counter = require('./counter');
-console.log(counter.count); // 0
-counter.increment();
-console.log(counter.count); // Still 0 (copy didn't update!)
-```
-
-**ES6 Modules** export live bindings:
-
-```javascript
-// counter.js (ESM)
-export let count = 0;
-export function increment() { count++; }
-
-// app.js
-import { count, increment } from './counter';
-console.log(count); // 0
-increment();
-console.log(count); // 1 (live binding updated!)
-```
-
-**Why it matters**:
-
-- ESM reflects changes automatically
-- CJS requires re-exporting or using objects
-- ESM more predictable for mutable state
-
-### ES6 Modules (ESM)
-
-**Syntax**:
-
-```javascript
-// export.js
-export const PI = 3.14159;
+// Named exports/imports
+export const PI = 3.14;
 export function add(a, b) { return a + b; }
+
+import { PI, add } from './math.js';
+import { add as sum } from './math.js'; // Rename
+import * as math from './math.js';       // Namespace
+
+// Default export/import
 export default class Calculator {}
+import Calculator from './calc.js';
 
-// import.js
-import Calculator, { PI, add } from './export.js';
-import * as math from './export.js';
-import { add as sum } from './export.js'; // Rename
+// Dynamic import (runtime, async)
+const { feature } = await import('./module.js');
 ```
 
-**Characteristics**:
-
-- **Static structure**: Imports/exports determined at compile time
-- **Live bindings**: Imported values are references, not copies
-- **Asynchronous loading**: Can be loaded dynamically with `import()`
-- **Tree-shaking**: Unused exports can be eliminated by bundlers
-- **Strict mode**: Always runs in strict mode
-- **Top-level await**: Supported in modern environments
+### CommonJS (CJS) — Node.js Legacy
 
 ```javascript
-// Dynamic imports
-const module = await import('./module.js');
-
-// Conditional loading
-if (condition) {
-  const { feature } = await import('./feature.js');
-}
-```
-
-### CommonJS (CJS)
-
-**Syntax**:
-
-```javascript
-// export.js
-const PI = 3.14159;
+// Export
+const PI = 3.14;
 function add(a, b) { return a + b; }
 module.exports = { PI, add };
-// or
-exports.PI = PI;
-exports.add = add;
 
-// import.js
-const { PI, add } = require('./export.js');
-const math = require('./export.js');
+// Import
+const { PI, add } = require('./math.js');
 ```
-
-**Characteristics**:
-
-- **Dynamic structure**: Requires resolved at runtime
-- **Synchronous loading**: Blocks execution until module loads
-- **Value copies**: Imported values are copies (primitives) or shallow copies (objects)
-- **No tree-shaking**: Harder for bundlers to optimize
-- **Default in Node.js**: Until `"type": "module"` in package.json
 
 ### Key Differences
 
-| Feature | ES6 Modules | CommonJS |
-|---------|-------------|----------|
-| **Loading** | Asynchronous | Synchronous |
-| **Binding** | Live references | Value copies |
+| Feature | ES6 Modules (ESM) | CommonJS (CJS) |
+|---------|-------------------|----------------|
 | **Structure** | Static (compile-time) | Dynamic (runtime) |
-| **Tree-shaking** | Yes | Limited |
-| **Top-level await** | Yes | No |
-| **Browser support** | Native | Requires bundler |
-| **Conditional imports** | Dynamic `import()` | Direct `require()` |
+| **Loading** | Async | Sync (blocking) |
+| **Binding** | Live references | Value copies |
+| **Tree-shaking** | ✅ Fully supported | ❌ Limited |
+| **Browser** | ✅ Native | ❌ Bundler required |
+| **Top-level await** | ✅ Supported | ❌ No |
+| **Conditional imports** | `await import()` | `require()` anywhere |
 
-### When to Use What?
+### Live Bindings vs Value Copies
 
-**ES6 Modules**:
+```javascript
+// ESM: Live bindings (changes reflected)
+export let count = 0;
+export function inc() { count++; }
 
-- Modern frontend projects
-- New Node.js projects (with `"type": "module"`)
-- When tree-shaking is important
-- Universal code (browser + Node.js)
+import { count, inc } from './counter.js';
+console.log(count); // 0
+inc();
+console.log(count); // 1 ✅ Updated!
 
-**CommonJS**:
+// CJS: Value copies (changes NOT reflected)
+let count = 0;
+module.exports = { count, inc() { count++; } };
 
-- Legacy Node.js projects
-- When synchronous loading is needed
-- Some tooling still requires it
+const c = require('./counter');
+console.log(c.count); // 0
+c.inc();
+console.log(c.count); // 0 ❌ Still 0!
+```
+
+### When to Use What
+
+| Use ESM When | Use CJS When |
+|--------------|---------------|
+| Modern frontend projects | Legacy Node.js projects |
+| New Node.js (`"type": "module"`) | Sync loading required |
+| Tree-shaking matters | Older tooling |
+| Universal browser + Node code | |
 
 **Interoperability**:
 
 ```javascript
 // ESM importing CJS
-import pkg from 'commonjs-package'; // Default import
-import { named } from 'commonjs-package'; // May not work
+import pkg from 'cjs-package'; // Default import
 
-// CJS importing ESM (Node.js)
-const module = await import('esm-module'); // Must use dynamic import
+// CJS importing ESM (must use dynamic import)
+const mod = await import('esm-package');
 ```
 
 ---
@@ -2435,350 +1558,76 @@ for (let i = 0; i < 3; i++) {
 
 ### Currying
 
-Transform multi-arg function into sequence of single-arg functions:
+**Transform multi-arg function into sequence of single-arg functions** (enables partial application):
 
 ```javascript
 // Regular vs Curried
 const add = (a, b, c) => a + b + c;
 const curried = a => b => c => a + b + c;
 
-curried(1)(2)(3); // 6
-const add1 = curried(1); // Partial application
-add1(2)(3); // 6
+curried(1)(2)(3);        // 6
+const add5 = curried(5); // Partial application
+add5(2)(3);              // 10
+```
 
-// Universal curry helper
+#### Generic Curry Helper
+
+```javascript
 const curry = fn => function curried(...args) {
-  return args.length >= fn.length 
-    ? fn(...args) 
+  return args.length >= fn.length
+    ? fn(...args)
     : (...more) => curried(...args, ...more);
 };
+
+const add = curry((a, b, c) => a + b + c);
+add(1)(2)(3);     // 6
+add(1, 2)(3);     // 6
+add(1)(2, 3);     // 6
+add(1, 2, 3);     // 6
 ```
 
-#### Currying: Practical Use Cases
-
-**1. Configuration Functions**:
+#### Practical Use Cases
 
 ```javascript
-// Generic logger
-const log = level => message => timestamp => {
-  console.log(`[${timestamp}] [${level}] ${message}`);
-};
+// 1. Config/Logging
+const log = level => msg => console.log(`[${level}] ${msg}`);
+const error = log('ERROR');
+error('Connection failed'); // [ERROR] Connection failed
 
-// Create specialized loggers
-const errorLog = log('ERROR');
-const infoLog = log('INFO');
-
-// Use them
-errorLog('Database connection failed')(new Date());
-infoLog('User logged in')(new Date());
-
-// Even more specialized
-const errorLogNow = errorLog('Something went wrong');
-errorLogNow(Date.now());
-errorLogNow(Date.now()); // Reuse with different timestamps
-```
-
-**2. Event Handlers**:
-
-```javascript
-const handleEvent = eventType => element => callback => {
-  element.addEventListener(eventType, callback);
-};
-
-// Create specialized handlers
-const onClick = handleEvent('click');
-const onHover = handleEvent('mouseenter');
-
-// Use them
-const button = document.querySelector('#myButton');
-conClick(button)(() => console.log('Clicked!'));
-
-// Or create even more specialized
-const onButtonClick = onClick(button);
-onButtonClick(() => console.log('Button clicked'));
-onButtonClick(() => console.log('Another handler'));
-```
-
-**3. Data Transformation Pipelines**:
-
-```javascript
-// Generic transformers
-const map = fn => array => array.map(fn);
-const filter = predicate => array => array.filter(predicate);
-const reduce = reducer => initial => array => array.reduce(reducer, initial);
-
-// Create specialized functions
+// 2. Data Pipelines
+const map = fn => arr => arr.map(fn);
+const filter = pred => arr => arr.filter(pred);
 const double = map(x => x * 2);
-const evensOnly = filter(x => x % 2 === 0);
-const sum = reduce((acc, n) => acc + n)(0);
+const evens = filter(x => x % 2 === 0);
 
-// Use them
-const numbers = [1, 2, 3, 4, 5];
+double([1, 2, 3]);  // [2, 4, 6]
+evens([1, 2, 3]);   // [2]
 
-double(numbers);        // [2, 4, 6, 8, 10]
-evensOnly(numbers);     // [2, 4]
-sum(numbers);           // 15
-
-// Compose transformations
-const result = sum(double(evensOnly(numbers)));
-// evensOnly: [2, 4] → double: [4, 8] → sum: 12
-```
-
-**4. API Request Builders**:
-
-```javascript
-const request = method => url => headers => body => {
-  return fetch(url, {
-    method,
-    headers,
-    body: JSON.stringify(body)
-  });
-};
-
-// Create specialized requests
-const get = request('GET');
-const post = request('POST');
-const delete = request('DELETE');
-
-// Further specialize
-const apiGet = get('https://api.example.com');
-const apiPost = post('https://api.example.com');
-
-// Use with different endpoints
-const authHeaders = { 'Authorization': 'Bearer token' };
-
-apiGet('/users')(authHeaders)(null);
-apiPost('/users')(authHeaders)({ name: 'John' });
-```
-
-#### Implementing a Generic Curry Function
-
-**Simple curry** (strict: one arg at a time):
-
-```javascript
-function curry(fn) {
-  return function curried(arg) {
-    if (fn.length <= 1) {
-      return fn(arg);
-    }
-    return curry(fn.bind(null, arg));
-  };
-}
-
-const add = (a, b, c) => a + b + c;
-const curriedAdd = curry(add);
-
-curriedAdd(1)(2)(3); // 6
-```
-
-**Flexible curry** (partial application):
-
-```javascript
-function curry(fn) {
-  return function curried(...args) {
-    // If all args provided, call function
-    if (args.length >= fn.length) {
-      return fn.apply(this, args);
-    }
-    
-    // Otherwise, return function waiting for more args
-    return function(...moreArgs) {
-      return curried.apply(this, [...args, ...moreArgs]);
-    };
-  };
-}
-
-const add = (a, b, c) => a + b + c;
-const curriedAdd = curry(add);
-
-// All variations work:
-curriedAdd(1)(2)(3);        // 6
-curriedAdd(1, 2)(3);        // 6
-curriedAdd(1)(2, 3);        // 6
-curriedAdd(1, 2, 3);        // 6
-
-// Partial application:
-const add5 = curriedAdd(5);
-add5(10, 15);               // 30
-add5(10)(15);               // 30
-```
-
-#### Function Composition with Currying
-
-**Compose**: Apply functions right to left
-
-```javascript
-const compose = (...fns) => x => 
-  fns.reduceRight((acc, fn) => fn(acc), x);
-
-// With currying:
-const add = x => y => x + y;
-const multiply = x => y => x * y;
-const subtract = x => y => y - x;
-
-const calculate = compose(
-  add(1),        // 3. Add 1
-  multiply(2),   // 2. Multiply by 2
-  subtract(5)    // 1. Subtract from 5
-);
-
-calculate(3);    // (3 - 5) * 2 + 1 = -3
-
-// Step by step:
-// 1. subtract(5)(3) = 5 - 3 = 2
-// 2. multiply(2)(2) = 2 * 2 = 4
-// 3. add(1)(4) = 1 + 4 = 5
-```
-
-**Pipe**: Apply functions left to right
-
-```javascript
-const pipe = (...fns) => x => 
-  fns.reduce((acc, fn) => fn(acc), x);
-
-const processUser = pipe(
-  user => ({ ...user, name: user.name.toUpperCase() }),
-  user => ({ ...user, age: user.age + 1 }),
-  user => ({ ...user, active: true })
-);
-
-const user = { name: 'john', age: 30 };
-processUser(user);
-// { name: 'JOHN', age: 31, active: true }
-```
-
-#### Real-World Example: Validation
-
-```javascript
-// Generic validators (curried)
-const minLength = min => value => 
-  value.length >= min;
-
-const maxLength = max => value => 
-  value.length <= max;
-
-const matches = regex => value => 
-  regex.test(value);
-
+// 3. Validators
+const minLen = min => val => val.length >= min;
+const matches = regex => val => regex.test(val);
 const isEmail = matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-const isStrongPassword = value => 
-  minLength(8)(value) && 
-  matches(/[A-Z]/)(value) && 
-  matches(/[0-9]/)(value);
-
-// Create specific validators
-const isValidUsername = value =>
-  minLength(3)(value) && 
-  maxLength(20)(value) && 
-  matches(/^[a-zA-Z0-9_]+$/)(value);
-
-// Use them
-isValidUsername('john_doe');     // true
-isValidUsername('ab');           // false (too short)
-isEmail('test@example.com');     // true
-isStrongPassword('Weak');        // false
-isStrongPassword('Strong123');   // true
 ```
 
-#### Benefits of Currying
-
-**1. Reusability**:
+#### Function Composition
 
 ```javascript
-const multiply = x => y => x * y;
+const compose = (...fns) => x => fns.reduceRight((acc, fn) => fn(acc), x);
+const pipe = (...fns) => x => fns.reduce((acc, fn) => fn(acc), x);
 
-const double = multiply(2);
-const triple = multiply(3);
-const quadruple = multiply(4);
-
-double(5);      // 10
-triple(5);      // 15
-quadruple(5);   // 20
+const process = pipe(
+  x => x + 1,
+  x => x * 2,
+  x => `Result: ${x}`
+);
+process(5); // "Result: 12"
 ```
 
-**2. Testability**:
+#### When NOT to Use
 
-```javascript
-// Instead of testing with all params:
-function sendEmail(to, subject, body, smtp) {
-  // ...
-}
-
-// Curry it:
-const sendEmail = smtp => to => subject => body => {
-  // ...
-}
-
-// Configure once for tests:
-const testEmail = sendEmail(mockSmtp);
-
-// Test different scenarios easily:
-testEmail('user@example.com')('Test')('Body');
-testEmail('admin@example.com')('Alert')('Message');
-```
-
-**3. Delayed Execution**:
-
-```javascript
-const calculate = operation => a => b => {
-  console.log(`Calculating ${operation}`);
-  switch(operation) {
-    case 'add': return a + b;
-    case 'multiply': return a * b;
-  }
-};
-
-// Setup operations without executing
-const add = calculate('add');
-const multiply = calculate('multiply');
-
-// Execute later with specific values
-const result1 = add(5)(10);      // "Calculating add" → 15
-const result2 = multiply(5)(10); // "Calculating multiply" → 50
-```
-
-#### When NOT to Use Currying
-
-**1. Performance-critical code** (function calls have overhead)
-
-```javascript
-// Curried (more function calls)
-const add = a => b => c => a + b + c;
-add(1)(2)(3);
-
-// Regular (single function call)
-const add = (a, b, c) => a + b + c;
-add(1, 2, 3); // Faster
-```
-
-#### 2. Simple one-time operations
-
-```javascript
-// Overkill for simple, non-reusable operations
-const calculateTotal = tax => shipping => items => 
-  items + tax + shipping;
-
-calculateTotal(10)(5)(100); // Unnecessarily complex
-
-// Better:
-const calculateTotal = (items, tax, shipping) => 
-  items + tax + shipping;
-
-calculateTotal(100, 10, 5); // Clearer
-```
-
-#### 3. Dynamic argument counts
-
-```javascript
-// When you don't know how many args you'll need
-function sum(...numbers) {
-  return numbers.reduce((a, b) => a + b, 0);
-}
-
-sum(1, 2, 3, 4, 5); // Works
-
-// Currying doesn't make sense here
-```
+- **Performance-critical code**: Extra function calls add overhead
+- **Simple one-time operations**: `add(1, 2, 3)` is clearer than `add(1)(2)(3)`
+- **Dynamic argument counts**: `sum(...args)` can't be curried meaningfully
 
 ### `this` Context
 
@@ -4243,591 +3092,94 @@ console.log(account.#balance); // SyntaxError: Private field
 
 ### Singleton Pattern
 
-#### What is the Singleton Pattern?
+**Singleton** ensures a class has **only one instance** with a **global access point**.
 
-**Singleton** is a creational design pattern that ensures a class has **only one instance** and provides a **global access point** to that instance.
+**Use cases**: Database connections, configuration, logging, caching, event bus.
 
-**Why Singleton exists**:
-
-- **Resource management**: Database connections, file systems (expensive to create)
-- **Shared state**: Configuration, logging, caching (needs to be consistent)
-- **Control access**: Ensure only one instance manages a resource
-- **Lazy initialization**: Create instance only when needed
-
-**Origin**: Part of "Gang of Four" (GoF) Design Patterns book (1994)
-
-#### The Problem Singleton Solves
-
-**Without Singleton**:
-
-```javascript
-class Database {
-  constructor() {
-    this.connection = this.connect();
-    console.log('Creating new database connection');
-  }
-  
-  connect() {
-    return { status: 'connected', host: 'localhost' };
-  }
-}
-
-// Problem: Multiple instances = multiple connections
-const db1 = new Database(); // "Creating new database connection"
-const db2 = new Database(); // "Creating new database connection"
-const db3 = new Database(); // "Creating new database connection"
-
-console.log(db1 === db2); // false (different instances!)
-
-// Wasted resources, inconsistent state
-```
-
-**With Singleton**:
-
-```javascript
-class Database {
-  static #instance = null;
-  
-  constructor() {
-    if (Database.#instance) {
-      return Database.#instance;
-    }
-    
-    this.connection = this.connect();
-    console.log('Creating new database connection');
-    Database.#instance = this;
-  }
-  
-  connect() {
-    return { status: 'connected', host: 'localhost' };
-  }
-}
-
-const db1 = new Database(); // "Creating new database connection"
-const db2 = new Database(); // (nothing logged)
-const db3 = new Database(); // (nothing logged)
-
-console.log(db1 === db2); // true (same instance!)
-console.log(db1 === db3); // true
-```
-
-#### Implementation Patterns
-
-#### 1. ES6 Class with Private Static Instance
-
-**Modern, recommended approach**:
+#### Implementation (Modern ES6)
 
 ```javascript
 class Database {
   static #instance = null;
   #connection = null;
-  
+
   constructor() {
-    // Return existing instance if it exists
-    if (Database.#instance) {
-      return Database.#instance;
-    }
-    
-    // Initialize connection
+    if (Database.#instance) return Database.#instance;
     this.#connection = this.#createConnection();
-    
-    // Store instance
     Database.#instance = this;
   }
-  
+
   #createConnection() {
-    console.log('Establishing database connection...');
-    return { 
-      status: 'connected', 
-      host: 'localhost',
-      port: 5432
-    };
+    console.log('Connecting...');
+    return { status: 'connected' };
   }
-  
-  query(sql) {
-    console.log(`Executing: ${sql}`);
-    return this.#connection;
-  }
-  
-  disconnect() {
-    this.#connection = null;
-    console.log('Disconnected');
-  }
-  
-  // Alternative: static factory method
+
+  query(sql) { return this.#connection; }
+
   static getInstance() {
-    if (!Database.#instance) {
-      Database.#instance = new Database();
-    }
+    if (!Database.#instance) Database.#instance = new Database();
     return Database.#instance;
   }
 }
 
-// Usage
-const db1 = new Database();        // Establishes connection
-const db2 = new Database();        // Returns existing
-const db3 = Database.getInstance(); // Also returns existing
-
-console.log(db1 === db2 === db3); // true
+const db1 = new Database();       // "Connecting..."
+const db2 = new Database();       // (nothing - returns same instance)
+console.log(db1 === db2);         // true
 ```
 
-#### 2. IIFE with Closure (Pre-ES6)
-
-**Closure-based approach** (before private fields):
+#### ES6 Module Pattern (Simplest)
 
 ```javascript
-const DatabaseSingleton = (function() {
-  // Private instance variable (closure)
-  let instance;
-  
-  // Private initialization function
-  function createInstance() {
-    const connection = { 
-      status: 'connected',
-      host: 'localhost' 
-    };
-    
-    // Public interface
-    return {
-      query(sql) {
-        console.log(`Executing: ${sql}`);
-        return connection;
-      },
-      
-      getConnection() {
-        return { ...connection }; // Return copy, not reference
-      },
-      
-      disconnect() {
-        connection.status = 'disconnected';
-        console.log('Disconnected');
-      }
-    };
-  }
-  
-  // Public API
-  return {
-    getInstance() {
-      if (!instance) {
-        instance = createInstance();
-      }
-      return instance;
-    }
-  };
-})();
-
-// Usage
-const db1 = DatabaseSingleton.getInstance();
-const db2 = DatabaseSingleton.getInstance();
-
-console.log(db1 === db2); // true
-
-// Cannot create new instances directly
-const db3 = new DatabaseSingleton(); // TypeError: DatabaseSingleton is not a constructor
-```
-
-#### 3. ES6 Module Pattern
-
-**Simplest approach using modules**:
-
-```javascript
-// database.js
-class Database {
-  #connection = null;
-  
-  constructor() {
-    this.#connection = this.#createConnection();
-  }
-  
-  #createConnection() {
-    console.log('Creating connection');
-    return { status: 'connected', host: 'localhost' };
-  }
-  
-  query(sql) {
-    console.log(`Executing: ${sql}`);
-    return this.#connection;
-  }
-}
-
-// Create single instance and export it
+// database.js - ES6 modules are singletons by design
+class Database { /* ... */ }
 export default new Database();
 
-// Or with lazy initialization:
+// Or lazy:
 let instance = null;
-
 export function getDatabase() {
-  if (!instance) {
-    instance = new Database();
-  }
+  if (!instance) instance = new Database();
   return instance;
 }
 ```
 
-```javascript
-// Usage in other files
-import db from './database.js';
-// or
-import { getDatabase } from './database.js';
-const db = getDatabase();
+#### Advantages vs Disadvantages
 
-db.query('SELECT * FROM users');
-```
+| ✅ Advantages | ❌ Disadvantages |
+|--------------|------------------|
+| Single instance (resource efficient) | Global state (hard to track changes) |
+| Lazy initialization | Testing difficulties (shared state) |
+| Global access | Tight coupling |
+| | Violates Single Responsibility |
 
-**Why this works**: ES6 modules are **singletons by design** - they're evaluated once and cached.
+#### When to Use / Avoid
 
-#### 4. Lazy Initialization
+| ✅ Use For | ❌ Avoid When |
+|-----------|---------------|
+| Configuration managers | Need multiple instances |
+| Logging services | Testing is critical |
+| Caching | State varies by context |
+| Connection pools | Concurrency matters |
 
-**Only create instance when first accessed**:
-
-```javascript
-class Logger {
-  static #instance = null;
-  #logs = [];
-  
-  constructor() {
-    if (Logger.#instance) {
-      throw new Error('Use Logger.getInstance() instead of new');
-    }
-    Logger.#instance = this;
-  }
-  
-  static getInstance() {
-    // Lazy initialization: create only when needed
-    if (!Logger.#instance) {
-      Logger.#instance = new Logger();
-      console.log('Logger instance created');
-    }
-    return Logger.#instance;
-  }
-  
-  log(message) {
-    const entry = `[${new Date().toISOString()}] ${message}`;
-    this.#logs.push(entry);
-    console.log(entry);
-  }
-  
-  getLogs() {
-    return [...this.#logs]; // Return copy
-  }
-}
-
-// No instance created yet
-console.log('App starting...');
-
-// Instance created on first access
-const logger = Logger.getInstance(); // "Logger instance created"
-logger.log('First log');
-
-// Same instance returned
-const logger2 = Logger.getInstance(); // (nothing logged)
-console.log(logger === logger2); // true
-```
-
-#### Real-World Use Cases
-
-**1. Configuration Manager**:
+#### Better Alternative: Dependency Injection
 
 ```javascript
-class Config {
-  static #instance = null;
-  #settings = {};
-  
-  constructor() {
-    if (Config.#instance) {
-      return Config.#instance;
-    }
-    
-    // Load configuration from environment
-    this.#settings = {
-      apiUrl: process.env.API_URL || 'http://localhost:3000',
-      maxRetries: parseInt(process.env.MAX_RETRIES) || 3,
-      timeout: parseInt(process.env.TIMEOUT) || 5000
-    };
-    
-    Config.#instance = this;
-  }
-  
-  get(key) {
-    return this.#settings[key];
-  }
-  
-  set(key, value) {
-    this.#settings[key] = value;
-  }
-}
-
-// Usage across application
-const config1 = new Config();
-const config2 = new Config();
-
-config1.set('apiUrl', 'https://api.production.com');
-console.log(config2.get('apiUrl')); // "https://api.production.com"
-// Same configuration everywhere!
-```
-
-**2. Cache Manager**:
-
-```javascript
-class Cache {
-  static #instance = null;
-  #cache = new Map();
-  
-  static getInstance() {
-    if (!Cache.#instance) {
-      Cache.#instance = new Cache();
-    }
-    return Cache.#instance;
-  }
-  
-  set(key, value, ttl = 60000) {
-    this.#cache.set(key, {
-      value,
-      expiry: Date.now() + ttl
-    });
-  }
-  
-  get(key) {
-    const item = this.#cache.get(key);
-    
-    if (!item) return null;
-    
-    if (Date.now() > item.expiry) {
-      this.#cache.delete(key);
-      return null;
-    }
-    
-    return item.value;
-  }
-  
-  clear() {
-    this.#cache.clear();
-  }
-}
-
-// Usage
-const cache = Cache.getInstance();
-cache.set('user:123', { name: 'John' }, 5000);
-
-// Elsewhere in app
-const cache2 = Cache.getInstance();
-const user = cache2.get('user:123'); // Same cache!
-```
-
-**3. Event Bus**:
-
-```javascript
-class EventBus {
-  static #instance = null;
-  #listeners = new Map();
-  
-  static getInstance() {
-    if (!EventBus.#instance) {
-      EventBus.#instance = new EventBus();
-    }
-    return EventBus.#instance;
-  }
-  
-  on(event, callback) {
-    if (!this.#listeners.has(event)) {
-      this.#listeners.set(event, []);
-    }
-    this.#listeners.get(event).push(callback);
-  }
-  
-  emit(event, data) {
-    const callbacks = this.#listeners.get(event) || [];
-    callbacks.forEach(cb => cb(data));
-  }
-  
-  off(event, callback) {
-    const callbacks = this.#listeners.get(event) || [];
-    const index = callbacks.indexOf(callback);
-    if (index > -1) {
-      callbacks.splice(index, 1);
-    }
-  }
-}
-
-// Usage
-const bus = EventBus.getInstance();
-bus.on('user:login', (user) => console.log(`${user.name} logged in`));
-
-// Elsewhere
-const bus2 = EventBus.getInstance();
-bus2.emit('user:login', { name: 'John' });
-// Same event bus!
-```
-
-#### Advantages of Singleton
-
-**1. Controlled access to sole instance**:
-
-- Only one instance exists
-- Can't accidentally create multiple
-
-**2. Reduced memory footprint**:
-
-```javascript
-// Without Singleton: 3 instances = 3x memory
-const db1 = new Database();
-const db2 = new Database();
-const db3 = new Database();
-
-// With Singleton: 1 instance = 1x memory
-const db1 = Database.getInstance();
-const db2 = Database.getInstance();
-const db3 = Database.getInstance();
-// All point to same instance
-```
-
-**3. Lazy initialization**:
-
-```javascript
-// Resource created only when needed
-const logger = Logger.getInstance(); // Created here
-```
-
-**4. Global access point**:
-
-```javascript
-// Can access from anywhere
-function someFunction() {
-  const config = Config.getInstance();
-  const apiUrl = config.get('apiUrl');
-}
-```
-
-#### Disadvantages of Singleton
-
-**1. Global State** (biggest problem):
-
-```javascript
-// Hard to track who modified state
-const config = Config.getInstance();
-config.set('mode', 'production');
-
-// Later, somewhere else:
-const config2 = Config.getInstance();
-console.log(config2.get('mode')); // 'production' (who set this?)
-```
-
-**2. Testing Difficulties**:
-
-```javascript
-// Tests share same instance
-test('test 1', () => {
-  const cache = Cache.getInstance();
-  cache.set('key', 'value1');
-  // ...
-});
-
-test('test 2', () => {
-  const cache = Cache.getInstance();
-  console.log(cache.get('key')); // 'value1' from previous test!
-  // Tests are not isolated!
-});
-
-// Solution: Add reset method
-class Cache {
-  static reset() {
-    Cache.#instance = null;
-  }
-}
-
-afterEach(() => {
-  Cache.reset();
-});
-```
-
-**3. Tight Coupling**:
-
-```javascript
-// Directly depends on concrete class
-class UserService {
-  saveUser(user) {
-    const db = Database.getInstance(); // Tightly coupled!
-    db.query(`INSERT INTO users VALUES (...)`);
-  }
-}
-
-// Better: Dependency Injection
-class UserService {
-  constructor(database) {
-    this.database = database; // Loosely coupled
-  }
-  
-  saveUser(user) {
-    this.database.query(`INSERT INTO users VALUES (...)`);
-  }
-}
-```
-
-**4. Violates Single Responsibility Principle**:
-
-```javascript
-// Singleton manages:
-// 1. Its own creation (getInstance)
-// 2. Its business logic (query, etc.)
-// Two responsibilities!
-```
-
-#### When to Use Singleton
-
-✅ **Good use cases**:
-
-- **Configuration**: App-wide settings
-- **Logging**: Centralized logging service  
-- **Caching**: Shared cache
-- **Resource pools**: Database connection pools
-- **Hardware interfaces**: Printer, GPU access
-
-❌ **Avoid when**:
-
-- You need multiple instances (use factory pattern)
-- Testing is important (prefer dependency injection)
-- State can vary (use parameter passing)
-- Concurrency matters (singletons + threading = problems)
-
-#### Modern Alternative: Dependency Injection
-
-**Instead of Singleton**:
-
-```javascript
-// Singleton (global state)
-class Database {
-  static getInstance() { /*...*/ }
-}
-
+// Singleton (tightly coupled, hard to test)
 class UserService {
   getUser(id) {
-    const db = Database.getInstance(); // Hard to test
-    return db.query(`SELECT * FROM users WHERE id = ${id}`);
+    const db = Database.getInstance(); // ❌
+    return db.query(`SELECT...`);
   }
 }
-```
 
-**Better: Dependency Injection**:
-
-```javascript
-// Inject dependency
+// DI (loosely coupled, testable)
 class UserService {
-  constructor(database) {
-    this.database = database; // Easy to mock in tests
-  }
-  
-  getUser(id) {
-    return this.database.query(`SELECT * FROM users WHERE id = ${id}`);
-  }
+  constructor(database) { this.database = database; }
+  getUser(id) { return this.database.query(`SELECT...`); }
 }
-
-// Usage
-const db = new Database();
-const userService = new UserService(db);
 
 // Testing
 const mockDb = { query: jest.fn() };
-const userService = new UserService(mockDb); // Easy to test!
+const service = new UserService(mockDb); // ✅ Easy to test
 ```
 
 ---

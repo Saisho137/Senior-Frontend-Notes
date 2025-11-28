@@ -75,7 +75,9 @@ console.log('End'); // Won't execute until loop completes
 Despite being single-threaded, JavaScript achieves **concurrency** (not parallelism) through:
 
 **1. Event Loop**: Manages execution of asynchronous operations
+
 **2. Web APIs / C++ APIs**: Browser/Node.js provides APIs that run outside JavaScript's single thread
+
 **3. Callback Queue**: Stores callbacks waiting to be executed
 
 **Concurrency vs Parallelism**:
@@ -279,6 +281,7 @@ function recursiveFunction() {
 **What they are**: Separate APIs provided by the runtime environment (browser or Node.js) that handle asynchronous operations **outside** the JavaScript thread.
 
 **Browser**: `setTimeout`, `fetch`, DOM events, `requestAnimationFrame`
+
 **Node.js**: File system, network, timers, `process.nextTick`
 
 #### 3. Macrotask Queue
